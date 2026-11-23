@@ -4,36 +4,79 @@ extends Node2D
 ## particles. Generated assets are cached statically so restarts are free.
 
 const RATE := 22050
-const MAX_DECALS := 1600
+const MAX_DECALS := 320 # per room
+const SPRITE_DIR := "res://assets/sprites/"
+# Logical texture name -> sliced sprite (tools/slice_sheets.py). Anything
+# without a sprite file falls back to the procedural generator below.
+const SPRITES := {
+	"player_pipe": "chars/player_pipe", "player_pistol": "chars/player_pistol",
+	"player_shotgun": "chars/player_shotgun", "shambler": "chars/zombie_shambler",
+	"runner": "chars/zombie_runner", "bloater": "chars/zombie_bloater",
+	"corpse_shambler": "chars/corpse_zombie", "corpse_runner": "chars/corpse_zombie",
+	"corpse_bloater": "chars/corpse_zombie", "corpse_player": "chars/corpse_player",
+}
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
+const ROOMS_X := 4
+const ROOMS_Y := 3
+const ROOM_W := 17 * 16
+const ROOM_H := 11 * 16
 const PINK := Color("ff2a6d")
 const CYAN := Color("05d9e8")
 
 # zone index -> [colour A, line colour, pattern, colour A for odd cells]
 const FLOORS := [
-	["2a2833", "33313d", 0, "2a2833"], # entry
-	["120c1c", "2a1a40", 1, "120c1c"], # dance
-	["3a1446", "52206a", 4, "3a1446"], # vip
-	["b8bcc2", "5a6068", 1, "747a84"], # kitchen
-	["4a2c1c", "341e12", 2, "4a2c1c"], # bar
-	["1f5a5a", "174444", 3, "1f5a5a"], # restroom
-	["34343a", "2a2a30", 0, "303036"], # storage
-	["4a1420", "5e1c2c", 4, "4a1420"], # corridor
-	["50545c", "3c4048", 1, "50545c"], # elevator lobby
+	["4a4a60", "3c3c50", 1, "44445a"], # entry
+	["241a3a", "3a2a5c", 1, "241a3a"], # dance
+	["6a2a80", "8a3aa6", 4, "6a2a80"], # vip
+	["d0d6dc", "7a848e", 1, "8e98a4"], # kitchen
+	["7a4a2c", "55321c", 2, "7a4a2c"], # bar
+	["2f8a8a", "236a6a", 3, "2f8a8a"], # restroom
+	["5a5a62", "484850", 0, "52525a"], # storage
+	["7a2434", "962e44", 4, "7a2434"], # corridor
+	["7a808c", "5c626c", 1, "7a808c"], # elevator lobby
+]
+
+# zone index -> [fill, edge, highlight, motif] for solid furniture
+const FURN := [
+	["3c5a8a", "1c2a44", "6a8ac0", 0], # entry: benches
+	["2a2a34", "101016", "4a4a5a", 1], # dance: speakers
+	["c22a7a", "6a1040", "ff6ab0", 2], # vip: velvet sofas
+	["aab4be", "5a646e", "e6f0f8", 1], # kitchen: steel counters
+	["8a5a30", "4a2c14", "c08a50", 3], # bar: counter with bottles
+	["d8e0e4", "7a868c", "ffffff", 1], # restroom: sinks
+	["8a6a3a", "4a3618", "b08a50", 4], # storage: crates
+	["5a3030", "2a1414", "8a5050", 0], # corridor
+	["606874", "30343c", "9098a4", 0], # elevator lobby
+]
+const ROOM_NAMES := ["ENTRY", "DANCE", "VIP LOUNGE", "KITCHEN", "BAR", "RESTROOM", "STORAGE", "STAFF ONLY", "ELEVATOR"]
+
+# zone index -> lights as [x 0..1, y 0..1, colour, radius px, intensity]
+const LIGHTS := [
+	[[0.5, 0.5, "9fc0ff", 150, 1.3]],
+	[[0.5, 0.15, "ff2a9d", 120, 1.8], [0.2, 0.6, "05d9e8", 110, 1.4], [0.8, 0.6, "d300c5", 110, 1.4]],
+	[[0.5, 0.5, "e06bff", 130, 1.3], [0.1, 0.15, "ff2a6d", 70, 1.5], [0.9, 0.85, "ff2a6d", 70, 1.5]],
+	[[0.3, 0.5, "e6f6ff", 130, 1.2], [0.7, 0.5, "e6f6ff", 130, 1.2]],
+	[[0.4, 0.15, "ffb24a", 130, 1.7], [0.7, 0.8, "ff6a3a", 100, 1.2]],
+	[[0.5, 0.6, "7affe6", 140, 1.2]],
+	[[0.5, 0.5, "ffd070", 110, 1.0]],
+	[[0.5, 0.5, "ff4050", 130, 1.1]],
+	[[0.5, 0.45, "8affb0", 120, 1.4]],
 ]
 
 static var _tex := {}
 static var _img := {}
 static var _snd := {}
 static var _music: AudioStreamWAV
+static var _mats := {}
 
 var world
-var decal_node: Node2D
+var decal_nodes: Array = [] # one canvas per room (keeps each under the light limit)
 var decals: Array = []
 var parts: Array = [] # [pos, vel, life, color]
 var tracers: Array = [] # [a, b, life, color]
 var rings: Array = [] # [pos, radius, max_radius]
 var popups: Array = [] # [pos, text, life, color]
+var flashes: Array = [] # [pos, life]
 var shake := 0.0
 var _pool: Array = []
 var _next := 0
@@ -43,9 +86,11 @@ var _was_busy := false
 
 
 func _init() -> void:
-	z_index = 50
-	decal_node = Node2D.new()
-	decal_node.draw.connect(_draw_decals)
+	for i in ROOMS_X * ROOMS_Y:
+		var n := Node2D.new()
+		n.draw.connect(_draw_decals.bind(i))
+		decal_nodes.append(n)
+		decals.append([])
 
 
 func _ready() -> void:
@@ -159,22 +204,50 @@ static func warm() -> void:
 	for n in ["pistol", "shotgun", "swing", "hit", "kick", "glass", "door", "groan", "boom", "die",
 			"pickup", "dash", "exec", "grab", "clear", "fuse", "empty"]:
 		snd(n)
-	for n in ["player", "shambler", "runner", "bloater", "glass", "door", "door_locked",
-			"w_pipe", "w_pistol", "w_shotgun"]:
+	for n in ["player_pipe", "player_pistol", "player_shotgun", "light", "cone", "shambler", "runner", "bloater", "glass", "door", "door_locked",
+			"w_pipe", "w_pistol", "w_shotgun", "glow", "shadow", "vignette",
+			"corpse_shambler", "corpse_runner", "corpse_bloater", "corpse_player"]:
 		tex(n)
+
+
+## Shared blend materials: "add" for glows, "mul" for the baked light map.
+static func mat(kind: String) -> CanvasItemMaterial:
+	if not _mats.has(kind):
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD if kind == "add" else CanvasItemMaterial.BLEND_MODE_MUL
+		_mats[kind] = m
+	return _mats[kind]
 
 
 # ---------------------------------------------------------------- textures
 
+static func sprite_path(n: String) -> String:
+	return SPRITE_DIR + SPRITES.get(n, n) + ".png"
+
+
+static func has_sprite(n: String) -> bool:
+	return ResourceLoader.exists(sprite_path(n))
+
+
 static func tex(n: String) -> Texture2D:
 	if not _tex.has(n):
-		_tex[n] = ImageTexture.create_from_image(img(n))
+		if has_sprite(n):
+			_tex[n] = load(sprite_path(n))
+		else:
+			_tex[n] = ImageTexture.create_from_image(img(n))
 	return _tex[n]
 
 
 static func img(n: String) -> Image:
 	if not _img.has(n):
-		_img[n] = _make(n)
+		if has_sprite(n):
+			var im: Image = (load(sprite_path(n)) as Texture2D).get_image()
+			if im.is_compressed():
+				im.decompress()
+			im.convert(Image.FORMAT_RGBA8)
+			_img[n] = im
+		else:
+			_img[n] = _make(n)
 	return _img[n]
 
 
@@ -183,11 +256,23 @@ static func _make(n: String) -> Image:
 		var p := n.split("_")
 		var f: Array = FLOORS[int(p[1])]
 		return _tile(Color(f[3] if p[2] == "1" else f[0]), Color(f[1]), f[2], int(p[1]) * 7 + int(p[2]))
+	if n.begins_with("table_"):
+		return _furniture(FURN[int(n.split("_")[1])])
 	match n:
-		"player": return _actor(14, Color("e6dfcc"), Color("5a3a22"), Color("e6dfcc"), 0)
-		"shambler": return _actor(14, Color("5c7a48"), Color("a3b57c"), Color("a3b57c"), 6)
-		"runner": return _actor(12, Color("9c3a3a"), Color("d6a48e"), Color("d6a48e"), 5)
-		"bloater": return _actor(20, Color("a59a3a"), Color("d2cc78"), Color("8a8030"), 4)
+		"player_pipe", "player_pistol", "player_shotgun":
+			return _outline(_actor(14, Color("f2c230"), Color("3a2616"), Color("e8b890"), 4))
+		"light": return _light(64, 0.0)
+		"cone": return _light(128, 0.55)
+		"shambler": return _outline(_actor(14, Color("5c7a48"), Color("a3b57c"), Color("a3b57c"), 6))
+		"runner": return _outline(_actor(12, Color("b83a3a"), Color("e0a890"), Color("e0a890"), 5))
+		"bloater": return _outline(_actor(20, Color("b0a53a"), Color("dcd67c"), Color("8a8030"), 4))
+		"corpse_player": return _outline(_corpse(14, Color("f2c230"), Color("3a2616")))
+		"corpse_shambler": return _outline(_corpse(14, Color("4a6238"), Color("8a9a68")))
+		"corpse_runner": return _outline(_corpse(12, Color("8a2c2c"), Color("b88a78")))
+		"corpse_bloater": return _outline(_corpse(20, Color("8a8230"), Color("b0aa60")))
+		"glow": return _radial(64, 64, Color(1, 1, 1), 0.0, 1.0, true)
+		"shadow": return _radial(16, 12, Color(0, 0, 0), 0.0, 0.45, true)
+		"vignette": return _radial(64, 36, Color(0.02, 0.0, 0.06), 0.55, 0.75, false)
 		"wall": return _tile(Color("1a1026"), Color("261838"), 2, 99)
 		"table":
 			var t := _solid(16, 16, Color("7a5230"), Color("3a2614"))
@@ -249,6 +334,115 @@ static func _tile(a: Color, b: Color, mode: int, sd: int) -> Image:
 	return im
 
 
+## Radial alpha gradient. `glow` fades out from the centre; otherwise it
+## fades in from `inner` (0..1 of the radius) towards the corners.
+static func _radial(w: int, h: int, col: Color, inner: float, strength: float, glow: bool) -> Image:
+	var im := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		for x in w:
+			var dx := (x + 0.5) / w * 2.0 - 1.0
+			var dy := (y + 0.5) / h * 2.0 - 1.0
+			var d := sqrt(dx * dx + dy * dy)
+			var a: float
+			if glow:
+				a = pow(clampf(1.0 - d, 0.0, 1.0), 2.0) * strength
+			else:
+				a = clampf((d - inner) / (1.42 - inner), 0.0, 1.0) * strength
+			im.set_pixel(x, y, Color(col, a))
+	return im
+
+
+## Light2D texture. `cone` > 0 narrows it to a beam along +X (half-angle in
+## radians) for the flashlight; 0 gives a round falloff.
+static func _light(size: int, cone: float) -> Image:
+	var im := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var c := size / 2.0
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5 - c, y + 0.5 - c)
+			var f := pow(clampf(1.0 - d.length() / c, 0.0, 1.0), 1.5)
+			if cone > 0.0:
+				f *= clampf((cone - absf(d.angle())) / 0.25, 0.0, 1.0)
+			im.set_pixel(x, y, Color(f, f, f, 1.0))
+	return im
+
+
+## One furniture tile; world.gd adds edges where the piece ends.
+static func _furniture(f: Array) -> Image:
+	var fill := Color(f[0])
+	var edge := Color(f[1])
+	var hi := Color(f[2])
+	var im := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	im.fill(fill)
+	match int(f[3]):
+		1: # ring: speaker cone / burner / basin
+			for y in 16:
+				for x in 16:
+					var d := Vector2(x - 7.5, y - 7.5).length()
+					if d < 5.5 and d > 3.5:
+						im.set_pixel(x, y, edge)
+					elif d <= 1.5:
+						im.set_pixel(x, y, hi)
+		2: # cushion button
+			im.fill_rect(Rect2i(2, 3, 12, 9), fill.lightened(0.12))
+			im.fill_rect(Rect2i(7, 7, 2, 2), edge)
+		3: # bottles and glasses
+			im.fill_rect(Rect2i(3, 4, 2, 4), Color("30ff70"))
+			im.fill_rect(Rect2i(8, 6, 2, 3), Color("05d9e8"))
+			im.fill_rect(Rect2i(12, 4, 2, 4), Color("ff2a6d"))
+		4: # crate planks
+			for i in 12:
+				im.set_pixel(2 + i, 2 + i, edge)
+				im.set_pixel(13 - i, 2 + i, edge)
+	return im
+
+
+## Adds a one pixel outline (grows the image by 2) so actors read on any floor.
+static func _outline(src: Image, col := Color("120a1a")) -> Image:
+	var w := src.get_width()
+	var h := src.get_height()
+	var out := Image.create(w + 2, h + 2, false, Image.FORMAT_RGBA8)
+	out.blit_rect(src, Rect2i(0, 0, w, h), Vector2i(1, 1))
+	for y in h + 2:
+		for x in w + 2:
+			if out.get_pixel(x, y).a > 0.0:
+				continue
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var sx: int = x - 1 + d.x
+				var sy: int = y - 1 + d.y
+				if sx >= 0 and sy >= 0 and sx < w and sy < h and src.get_pixel(sx, sy).a > 0.0:
+					out.set_pixel(x, y, col)
+					break
+	return out
+
+
+## A body lying flat: long torso, head at one end, splayed limbs, wounds.
+static func _corpse(size: int, body: Color, head: Color) -> Image:
+	var w := size + 6
+	var im := Image.create(w, size, false, Image.FORMAT_RGBA8)
+	var cx := w / 2.0
+	var cy := size / 2.0
+	var rx := size * 0.42
+	var ry := size * 0.24
+	var hr := size * 0.17
+	var rng := RandomNumberGenerator.new()
+	rng.seed = size * 31 + int(body.r8)
+	for y in size:
+		for x in w:
+			var dx := x + 0.5 - cx
+			var dy := y + 0.5 - cy
+			var col := Color(0, 0, 0, 0)
+			# limbs: two diagonals crossing the torso
+			if absf(absf(dx) - absf(dy) * 1.1 - rx * 0.35) < 0.9 and absf(dy) < size * 0.46 and absf(dx) < rx + 2.0:
+				col = body.darkened(0.25)
+			if (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1.0:
+				col = Color("8e0b1c") if rng.randf() < 0.18 else body
+			if (dx - rx - hr * 0.5) * (dx - rx - hr * 0.5) + dy * dy <= hr * hr:
+				col = head
+			im.set_pixel(x, y, col)
+	return im
+
+
 ## Top-down figure facing +X: shoulders, head, optional outstretched arms.
 static func _actor(size: int, body: Color, head: Color, arm: Color, arms: int) -> Image:
 	var im := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -275,10 +469,19 @@ static func _actor(size: int, body: Color, head: Color, arm: Color, arms: int) -
 # ---------------------------------------------------------------- decals
 
 func _add(d: Array) -> void:
-	decals.append(d)
-	if decals.size() > MAX_DECALS:
-		decals = decals.slice(200)
-	decal_node.queue_redraw()
+	var p: Vector2 = d[1]
+	var i := clampi(int(p.x) / ROOM_W, 0, ROOMS_X - 1) + clampi(int(p.y) / ROOM_H, 0, ROOMS_Y - 1) * ROOMS_X
+	decals[i].append(d)
+	if decals[i].size() > MAX_DECALS:
+		decals[i] = decals[i].slice(60)
+	decal_nodes[i].queue_redraw()
+
+
+func decal_count() -> int:
+	var n := 0
+	for list in decals:
+		n += list.size()
+	return n
 
 
 func blood(pos: Vector2, dir: Vector2, n: int, spread := 12.0) -> void:
@@ -288,9 +491,30 @@ func blood(pos: Vector2, dir: Vector2, n: int, spread := 12.0) -> void:
 			continue
 		var s := float(randi_range(1, 3))
 		_add([0, p.floor(), Vector2(s, s), BLOOD[randi() % 3]])
+	# Bigger hits also leave layered splats thrown along the blow.
+	for i in n / 7:
+		_splat(pos + dir * randf_range(4.0, 20.0) + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * spread * 0.6, randi_range(2, 4), dir)
 	for i in mini(n, 10):
 		var v := (dir * randf_range(40, 160)) + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 60.0
 		parts.append([pos, v, randf_range(0.15, 0.35), BLOOD[1]])
+
+
+## A pool: dark base, brighter wet core, and a streak of drops along `dir`.
+func _splat(pos: Vector2, r: int, dir := Vector2.ZERO) -> void:
+	for layer in 2:
+		var col: Color = BLOOD[2] if layer == 0 else BLOOD[randi() % 2]
+		var k := r if layer == 0 else maxi(1, r - 1)
+		for i in 3:
+			var p := pos + Vector2(randi_range(-k, k), randi_range(-k, k))
+			var s := Vector2(randi_range(k, k * 2), randi_range(k, k * 2))
+			if not world.solid_at(p) and not world.solid_at(p + s):
+				_add([0, p.floor(), s, col])
+	if dir != Vector2.ZERO:
+		for i in 4:
+			var p := pos + dir * (r * 2.0 + i * randf_range(3.0, 6.0)) + Vector2(randf_range(-2, 2), randf_range(-2, 2))
+			var s := float(maxi(1, r - i))
+			if not world.solid_at(p):
+				_add([0, p.floor(), Vector2(s, s), BLOOD[1]])
 
 
 func casing(pos: Vector2) -> void:
@@ -307,19 +531,29 @@ func shards(pos: Vector2) -> void:
 		parts.append([pos, Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 120.0, 0.25, Color(0.8, 1, 1)])
 
 
-func corpse(kind: String, pos: Vector2, rot: float, tint := Color(0.5, 0.42, 0.42)) -> void:
-	_add([1, pos, tex(kind), rot, tint])
+func corpse(kind: String, pos: Vector2, rot: float) -> void:
+	for i in 4:
+		_splat(pos + Vector2(randf_range(-5, 5), randf_range(-5, 5)), 4)
+	var tint := Color.WHITE
+	if has_sprite("corpse_" + kind) and kind == "runner":
+		tint = Color(1.0, 0.6, 0.6) # shared zombie corpse sprite, reddened
+	_add([1, pos, tex("corpse_" + kind), rot, tint])
 
 
-func _draw_decals() -> void:
-	for d in decals:
+func flash(pos: Vector2) -> void:
+	flashes.append([pos, 0.05])
+
+
+func _draw_decals(i: int) -> void:
+	var node: Node2D = decal_nodes[i]
+	for d in decals[i]:
 		if d[0] == 0:
-			decal_node.draw_rect(Rect2(d[1], d[2]), d[3])
+			node.draw_rect(Rect2(d[1], d[2]), d[3])
 		else:
 			var t: Texture2D = d[2]
-			decal_node.draw_set_transform(d[1], d[3])
-			decal_node.draw_texture(t, -t.get_size() / 2.0, d[4])
-			decal_node.draw_set_transform(Vector2.ZERO, 0.0)
+			node.draw_set_transform(d[1], d[3])
+			node.draw_texture(t, -t.get_size() / 2.0, d[4])
+			node.draw_set_transform(Vector2.ZERO, 0.0)
 
 
 # ---------------------------------------------------------------- transient
@@ -358,17 +592,23 @@ func _process(delta: float) -> void:
 	for p in popups:
 		p[0].y -= delta * 22.0
 		p[2] -= delta
+	for f in flashes:
+		f[1] -= delta
+	flashes = flashes.filter(func(f): return f[1] > 0.0)
 	parts = parts.filter(func(p): return p[2] > 0.0)
 	tracers = tracers.filter(func(t): return t[2] > 0.0)
 	rings = rings.filter(func(r): return r[1] < r[2])
 	popups = popups.filter(func(p): return p[2] > 0.0)
-	var busy := not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty())
+	var busy := not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty() and flashes.is_empty())
 	if busy or _was_busy:
 		queue_redraw()
 	_was_busy = busy
 
 
 func _draw() -> void:
+	for f in flashes:
+		draw_circle(f[0], 9.0, Color(1.0, 0.75, 0.3, 0.35))
+		draw_circle(f[0], 5.0, Color(1.0, 0.95, 0.7, 0.9))
 	for t in tracers:
 		draw_line(t[0], t[1], t[3], 1.0)
 	for p in parts:
