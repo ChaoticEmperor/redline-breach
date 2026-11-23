@@ -2,6 +2,8 @@ extends CanvasLayer
 ## Heads-up display: weapon/ammo, score and combo, remaining zombies,
 ## grab-break prompt, death and floor-clear screens.
 
+const Fx = preload("res://scripts/fx.gd")
+
 const PINK := Color("ff2a6d")
 const CYAN := Color("05d9e8")
 const YELLOW := Color("f9f002")
@@ -14,6 +16,12 @@ var _font: Font
 func _ready() -> void:
 	layer = 5
 	_font = ThemeDB.fallback_font
+	var vignette := Sprite2D.new()
+	vignette.texture = Fx.tex("vignette")
+	vignette.centered = false
+	vignette.scale = Vector2(10, 10)
+	vignette.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(vignette)
 	_canvas = Node2D.new()
 	_canvas.draw.connect(_draw_hud)
 	add_child(_canvas)
@@ -35,7 +43,8 @@ func _draw_hud() -> void:
 	var c := _canvas
 
 	# Weapon panel (tap to swap on touch).
-	c.draw_rect(Rect2(4, 4, 124, 26), Color(0, 0, 0, 0.45))
+	c.draw_rect(Rect2(4, 4, 124, 26), Color(0.04, 0.02, 0.08, 0.7))
+	c.draw_rect(Rect2(4, 4, 124, 26), CYAN, false, 1.0)
 	c.draw_rect(Rect2(4, 4, 2, 26), PINK)
 	var w: String = p.weapon
 	_text(Vector2(12, 16), w.to_upper(), 10, Color.WHITE)

@@ -23,7 +23,7 @@ const ZONE_OF := {
 	"rest": 5, "storage": 6, "corr": 7, "corr2": 7, "elev": 8,
 }
 const REQUIRED := ["dance", "vip", "kitchen", "bar", "rest", "storage", "corr", "corr2"]
-const FILLER := ["corr", "corr2", "bar", "storage", "dance"]
+const FILLER := ["corr", "corr2", "bar", "storage"]
 
 # Chunk legend: . floor  # wall  T furniture  G glass  L elevator door  E exit
 #   P player start  z shambler  r runner  b bloater  1 pistol  2 shotgun
@@ -44,25 +44,25 @@ const CHUNKS := {
 	],
 	"dance": [
 		"................",
-		"..z..........z..",
-		"....##....##....",
-		"....##....##....",
-		".......z........",
-		"...........r....",
-		"....##....##....",
-		"....##....##....",
-		"..z.....b....z..",
+		"..z...TTTT...z..",
+		"TT....TTTT....TT",
+		"TT.z...z..z.z.TT",
+		"....z....z......",
+		"..z....z...r....",
+		"TT...z....z...TT",
+		"TT.z...b....z.TT",
+		"....z.....z.....",
 		"................",
 	],
 	"vip": [
 		"TTT.G......G.TTT",
 		"T.z.G......G...T",
-		"....G......G.z..",
+		"....G.T....G.z..",
 		"GG.GG......GG.GG",
 		"................",
 		"........r.......",
 		"GG.GG......GG.GG",
-		"....G......G....",
+		"....G....T.G....",
 		"T.z.G..2...G.z.T",
 		"TTT.G......G.TTT",
 	],
@@ -93,7 +93,7 @@ const CHUNKS := {
 	"rest": [
 		"................",
 		"..#..#..#..#..#.",
-		".z#..#b.#..#.z#.",
+		".z#.T#b.#.T#.z#.",
 		"###.###.###.###.",
 		"................",
 		"................",

@@ -9,6 +9,7 @@ enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
 
 const SIGHT := 150.0
 const BLAST := 44.0
+const LURK := Color(2.0, 2.0, 2.0) # over-bright so shapes still read in the dark
 const STATS := {
 	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100},
 	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150},
@@ -61,9 +62,15 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	circle.radius = radius
 	shape.shape = circle
 	add_child(shape)
+	var shadow := Sprite2D.new()
+	shadow.texture = Fx.tex("shadow")
+	shadow.position = Vector2(1, 2)
+	shadow.scale = Vector2.ONE * (radius / 5.0)
+	add_child(shadow)
 	vis = Sprite2D.new()
 	vis.texture = Fx.tex(kind)
 	vis.rotation = randf() * TAU
+	vis.modulate = LURK
 	add_child(vis)
 	think_t = randf() * 0.2
 	world.enemy_list.append(self)
@@ -83,13 +90,13 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if down_t <= 0.0:
 			state = CHASE
-			vis.modulate = Color.WHITE
+			vis.modulate = LURK
 		return
 	if state == FUSE:
 		fuse_t -= delta
 		var k := 1.0 - fuse_t / 0.45
 		vis.scale = Vector2.ONE * (1.0 + k * 0.5)
-		vis.modulate = Color(1, 1, 1).lerp(Color(3, 1.5, 0.5), k)
+		vis.modulate = LURK.lerp(Color(6, 3, 1), k)
 		if fuse_t <= 0.0:
 			_explode()
 		return
@@ -235,7 +242,7 @@ func knockdown(dir: Vector2) -> void:
 	state = DOWN
 	down_t = 1.8
 	knock = dir * 170.0
-	vis.modulate = Color(0.6, 0.6, 0.75)
+	vis.modulate = Color(1.0, 1.0, 1.4)
 	fx.play("hit")
 
 

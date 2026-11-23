@@ -131,7 +131,7 @@ func _run() -> void:
 	await frames(15)
 	c.fire = false
 	ok(main.kills >= 1 and main.combo >= 1, "pistol kills, combo starts")
-	ok(w.fx.decals.size() > 5, "blood/casings persist (%d decals)" % w.fx.decals.size())
+	ok(w.fx.decal_count() > 5, "blood/casings persist (%d decals)" % w.fx.decal_count())
 
 	# Grab with no response -> death after the escape window.
 	p.grab_immune = 0.0
@@ -154,7 +154,7 @@ func _run() -> void:
 	ok(main.state == "play" and p.alive, "restart on input")
 	ok(main.floor_seed == seed_before and w.L.sig == sig, "restart keeps the same floor seed/layout")
 	ok(main.restart_usec < 200000, "restart took %.1f ms (< 200 ms)" % (main.restart_usec / 1000.0))
-	ok(w.fx.decals.is_empty() and main.score == 0, "restart resets the floor")
+	ok(w.fx.decal_count() == 0 and main.score == 0, "restart resets the floor")
 
 	# Grab -> kick breaks free -> execute the downed zombie.
 	e = await _get_grabbed()

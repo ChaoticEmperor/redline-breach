@@ -10,6 +10,7 @@ const DASH_SPEED := 340.0
 const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
+const ZOOM := 1.5
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
 	"pistol": {"cd": 0.2, "pellets": 1, "spread": 0.025, "dmg": 2, "range": 420.0, "loud": 400.0, "pickup": 10},
@@ -36,6 +37,8 @@ var kick_cd := 0.0
 var swing_t := 0.0
 var vis: Node2D
 var wep: Sprite2D
+var body: Sprite2D
+var muzzle_light: PointLight2D
 var cam: Camera2D
 
 
@@ -52,15 +55,38 @@ func setup(p_main, p_world, p_controls) -> void:
 	circle.radius = 5.0
 	shape.shape = circle
 	add_child(shape)
+	var shadow := Sprite2D.new()
+	shadow.texture = Fx.tex("shadow")
+	shadow.position = Vector2(1, 2)
+	add_child(shadow)
 	vis = Node2D.new()
 	add_child(vis)
 	wep = Sprite2D.new()
 	wep.centered = false
 	vis.add_child(wep)
-	var body := Sprite2D.new()
-	body.texture = Fx.tex("player")
+	body = Sprite2D.new()
 	vis.add_child(body)
+	# Flashlight beam along the aim, a small pool of light around the feet,
+	# and a muzzle flash light that fires for a few frames per shot.
+	var beam := PointLight2D.new()
+	beam.texture = Fx.tex("cone")
+	beam.texture_scale = 2.4
+	beam.color = Color("fff2d0")
+	beam.energy = 1.5
+	vis.add_child(beam)
+	var pool := PointLight2D.new()
+	pool.texture = Fx.tex("light")
+	pool.texture_scale = 1.6
+	pool.energy = 0.9
+	add_child(pool)
+	muzzle_light = PointLight2D.new()
+	muzzle_light.texture = Fx.tex("light")
+	muzzle_light.texture_scale = 4.0
+	muzzle_light.color = Color("ffc060")
+	muzzle_light.energy = 0.0
+	add_child(muzzle_light)
 	cam = Camera2D.new()
+	cam.zoom = Vector2(ZOOM, ZOOM)
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = world.L.w * World.T
@@ -78,11 +104,15 @@ func _process(delta: float) -> void:
 	var look := aim * 26.0 if alive else Vector2.ZERO
 	var jitter: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * fx.shake
 	cam.offset = cam.offset.lerp(look, minf(1.0, delta * 6.0)) + jitter
+	muzzle_light.energy = maxf(0.0, muzzle_light.energy - delta * 40.0)
+	var swing := 0.0
 	if swing_t > 0.0:
 		swing_t -= delta
-		wep.rotation = lerpf(1.3, -1.3, clampf(swing_t / 0.16, 0.0, 1.0))
-	else:
-		wep.rotation = 0.0
+		swing = lerpf(1.3, -1.3, clampf(swing_t / 0.16, 0.0, 1.0))
+	# With a full-body weapon sprite the whole figure swings; otherwise only
+	# the separate procedural weapon does.
+	wep.rotation = swing
+	body.rotation = swing * 0.6 if not wep.visible else 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -162,6 +192,8 @@ func give(kind: String) -> void:
 
 func _set_weapon(kind: String) -> void:
 	weapon = kind
+	body.texture = Fx.tex("player_" + kind)
+	wep.visible = not Fx.has_sprite("player_" + kind)
 	wep.texture = Fx.tex("w_" + kind)
 	wep.position = Vector2(3, 3)
 
@@ -192,6 +224,8 @@ func _fire() -> void:
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
 	fx.casing(global_position)
+	fx.flash(muzzle + aim * 3.0)
+	muzzle_light.energy = 2.5
 	fx.play(weapon)
 	fx.add_shake(5.0 if weapon == "shotgun" else 2.5)
 	main.shots += 1
@@ -315,8 +349,8 @@ func die(cause: String) -> void:
 	grab_t = 0.0
 	grabbers.clear()
 	velocity = Vector2.ZERO
-	vis.modulate = Color(0.6, 0.35, 0.35)
-	wep.visible = false
+	vis.visible = false
+	fx.corpse("player", global_position, vis.rotation)
 	fx.blood(global_position, Vector2.ZERO, 40, 22.0)
 	fx.play("die", 0.7)
 	fx.add_shake(6.0)

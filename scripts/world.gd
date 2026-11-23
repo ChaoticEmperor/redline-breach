@@ -1,6 +1,7 @@
 extends Node2D
-## The built floor: baked floor texture, wall collision, kickable doors,
-## breakable glass, pickups, pathfinding grid, raycasts and noise propagation.
+## The built floor: baked floor/prop texture, lighting, wall collision,
+## kickable doors, breakable glass, pickups, pathfinding grid, raycasts and
+## noise propagation.
 
 const Layout = preload("res://scripts/layout.gd")
 const Fx = preload("res://scripts/fx.gd")
@@ -12,9 +13,13 @@ const L_GLASS := 4
 const L_PLAYER := 8
 const L_ENEMY := 16
 const SOLID := L_WALL | L_DOOR | L_GLASS
+const AMBIENT := Color("1e182e")
 const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("d300c5"), Color("f9f002")]
+# zone index -> floor sprite in assets/sprites/floors/
+const ZONE_FLOOR := ["concrete", "dancefloor", "vip_carpet", "kitchen_tile", "bar_planks",
+	"restroom_tile", "concrete", "corridor_carpet", "elevator_steel"]
 
-static var _floor_cache := {}
+static var _bake_cache := {} # seed -> [floor texture, neon trim rects]
 
 var main
 var L: Dictionary
@@ -26,7 +31,11 @@ var pickups: Array = [] # {kind, pos, node}
 var enemy_list: Array = []
 var exit_rect := Rect2()
 var exit_open := false
+var _glow: CanvasLayer
 var _overlay: Node2D
+var _neon: Node2D
+var _trims: Array = []
+var _font: Font
 var _dance: Array = []
 var _beat := -1
 
@@ -36,19 +45,24 @@ func build(layout: Dictionary) -> void:
 	var cells: PackedByteArray = L.cells
 	var w: int = L.w
 	var h: int = L.h
+	_font = ThemeDB.fallback_font
 
-	var floor_spr := Sprite2D.new()
-	floor_spr.centered = false
-	floor_spr.texture = _floor_texture()
-	add_child(floor_spr)
-
-	_overlay = Node2D.new()
-	_overlay.draw.connect(_draw_overlay)
-	add_child(_overlay)
+	var baked: Array = _bake()
+	_trims = baked[1]
+	# One sprite per room so no single item exceeds the 2D light limit.
+	for s in Layout.COLS * Layout.ROWS:
+		var spr := Sprite2D.new()
+		spr.centered = false
+		spr.texture = baked[0]
+		spr.region_enabled = true
+		spr.region_rect = _chunk_rect(s)
+		spr.position = spr.region_rect.position
+		add_child(spr)
 
 	fx = Fx.new()
 	fx.world = self
-	add_child(fx.decal_node)
+	for n in fx.decal_nodes:
+		add_child(n)
 
 	astar = AStarGrid2D.new()
 	astar.region = Rect2i(0, 0, w, h)
@@ -103,12 +117,60 @@ func build(layout: Dictionary) -> void:
 		for c in L.exits:
 			exit_rect = exit_rect.merge(Rect2(Vector2(c) * T, Vector2(T, T)))
 
-	add_child(fx)
+	# Mood: near-black ambient, coloured point lights per room.
+	var dark := CanvasModulate.new()
+	dark.color = AMBIENT
+	add_child(dark)
+	for s in Layout.COLS * Layout.ROWS:
+		var origin := _chunk_origin(s)
+		for l in Fx.LIGHTS[_chunk_zone(s)]:
+			var light := PointLight2D.new()
+			light.texture = Fx.tex("light")
+			light.position = origin + Vector2(l[0] * Layout.CW, l[1] * Layout.CH) * T
+			light.texture_scale = l[3] * 2.4 / 64.0
+			light.color = Color(l[2])
+			light.energy = l[4]
+			add_child(light)
+
+	# Neon, signs, dancefloor glow and FX sit on their own canvas so the
+	# ambient darkness does not dim them.
+	_glow = CanvasLayer.new()
+	_glow.layer = 1
+	_glow.follow_viewport_enabled = true
+	add_child(_glow)
+	_neon = Node2D.new()
+	_neon.draw.connect(_draw_neon)
+	_glow.add_child(_neon)
+	_overlay = Node2D.new()
+	_overlay.material = Fx.mat("add")
+	_overlay.draw.connect(_draw_overlay)
+	_glow.add_child(_overlay)
+	_glow.add_child(fx)
 
 
-func _floor_texture() -> Texture2D:
-	if _floor_cache.has(L.seed):
-		return _floor_cache[L.seed]
+# ---------------------------------------------------------------- baking
+
+func _chunk_origin(s: int) -> Vector2:
+	return Vector2((s % Layout.COLS) * (Layout.CW + 1) + 1, (s / Layout.COLS) * (Layout.CH + 1) + 1) * T
+
+
+func _chunk_rect(s: int) -> Rect2:
+	var cx := s % Layout.COLS
+	var cy := s / Layout.COLS
+	var size := Vector2(Layout.CW + 1 + (1 if cx == Layout.COLS - 1 else 0), Layout.CH + 1 + (1 if cy == Layout.ROWS - 1 else 0))
+	return Rect2(Vector2(cx * (Layout.CW + 1), cy * (Layout.CH + 1)) * T, size * T)
+
+
+func _chunk_zone(s: int) -> int:
+	var c := cell_of(_chunk_origin(s))
+	return L.zone[c.y * L.w + c.x]
+
+
+## Bakes floor tiles, walls, furniture and the exit pad into one texture and
+## collects the neon trim rectangles. Cached per seed so restarts are free.
+func _bake() -> Array:
+	if _bake_cache.has(L.seed):
+		return _bake_cache[L.seed]
 	var cells: PackedByteArray = L.cells
 	var w: int = L.w
 	var h: int = L.h
@@ -121,30 +183,127 @@ func _floor_texture() -> Texture2D:
 			if code == Layout.WALL:
 				im.blit_rect(Fx.img("wall"), src, at)
 				continue
-			im.blit_rect(Fx.img("floor_%d_%d" % [L.zone[y * w + x], (x + y) % 2]), src, at)
-			if code == Layout.TABLE:
-				im.blit_rect(Fx.img("table"), src, at)
-			elif code == Layout.EXIT:
+			var z: int = L.zone[y * w + x]
+			var sprite: String = "floors/" + ZONE_FLOOR[z]
+			if Fx.has_sprite(sprite):
+				# 32px floor sprites span 2x2 cells.
+				im.blit_rect(Fx.img(sprite), Rect2i((x % 2) * T, (y % 2) * T, T, T), at)
+			else:
+				im.blit_rect(Fx.img("floor_%d_%d" % [z, (x + y) % 2]), src, at)
+			if code == Layout.EXIT:
 				im.blit_rect(Fx.img("exit"), src, at)
-	# Neon trim where walls meet open space.
+
+	_bake_furniture(im)
+	if not L.exits.is_empty() and Fx.has_sprite("props/elevator_panel"):
+		var r := Rect2i(L.exits[0] * T, Vector2i(T, T))
+		for c in L.exits:
+			r = r.merge(Rect2i(c * T, Vector2i(T, T)))
+		_stamp(im, "props/elevator_panel", r, false, false)
+
+	# Neon trim where walls meet open space (drawn unlit on the glow canvas).
+	var trims: Array = []
 	for y in h:
 		for x in w:
 			if cells[y * w + x] != Layout.WALL:
 				continue
 			var col: Color = Fx.PINK if ((x / 17) + (y / 11)) % 2 == 0 else Fx.CYAN
 			if y + 1 < h and cells[(y + 1) * w + x] != Layout.WALL:
-				im.fill_rect(Rect2i(x * T, y * T + T - 2, T, 2), col)
+				trims.append([Rect2(x * T, y * T + T - 2, T, 2), col])
 			if y > 0 and cells[(y - 1) * w + x] != Layout.WALL:
-				im.fill_rect(Rect2i(x * T, y * T, T, 1), col)
+				trims.append([Rect2(x * T, y * T, T, 1), col])
 			if x + 1 < w and cells[y * w + x + 1] != Layout.WALL:
-				im.fill_rect(Rect2i(x * T + T - 1, y * T, 1, T), col)
+				trims.append([Rect2(x * T + T - 1, y * T, 1, T), col])
 			if x > 0 and cells[y * w + x - 1] != Layout.WALL:
-				im.fill_rect(Rect2i(x * T, y * T, 1, T), col)
-	var t := ImageTexture.create_from_image(im)
-	if _floor_cache.size() > 4:
-		_floor_cache.clear()
-	_floor_cache[L.seed] = t
-	return t
+				trims.append([Rect2(x * T, y * T, 1, T), col])
+	if _bake_cache.size() > 4:
+		_bake_cache.clear()
+	_bake_cache[L.seed] = [ImageTexture.create_from_image(im), trims]
+	return _bake_cache[L.seed]
+
+
+## Groups touching furniture cells into pieces and draws each as props that
+## suit the room (or as procedural blocks when the sprites are missing).
+func _bake_furniture(im: Image) -> void:
+	var seen := {}
+	var index := 0
+	for y in L.h:
+		for x in L.w:
+			var start := Vector2i(x, y)
+			if seen.has(start) or code_at(start) != Layout.TABLE:
+				continue
+			var piece: Array = []
+			var queue: Array = [start]
+			seen[start] = true
+			var box := Rect2i(start, Vector2i.ONE)
+			while not queue.is_empty():
+				var c: Vector2i = queue.pop_back()
+				piece.append(c)
+				box = box.merge(Rect2i(c, Vector2i.ONE))
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var nb: Vector2i = c + d
+					if not seen.has(nb) and code_at(nb) == Layout.TABLE:
+						seen[nb] = true
+						queue.append(nb)
+			var zone: int = L.zone[y * L.w + x]
+			var prop := _prop_for(zone, box.size.x, box.size.y, piece.size(), index)
+			index += 1
+			var sprite: String = "props/" + prop[0]
+			if not Fx.has_sprite(sprite):
+				_bake_blocks(im, piece, zone)
+			elif piece.size() < box.size.x * box.size.y:
+				# L-shaped piece: one sprite over the whole box, elbow matched.
+				var right := not piece.has(box.position) or not piece.has(box.position + Vector2i(0, box.size.y - 1))
+				var bottom := not piece.has(box.position) or not piece.has(box.position + Vector2i(box.size.x - 1, 0))
+				_stamp(im, sprite, Rect2i(box.position * T, box.size * T), right, bottom)
+			else:
+				var fw: int = mini(prop[1], box.size.x)
+				var fh: int = mini(prop[2], box.size.y)
+				for py in range(box.position.y, box.end.y, fh):
+					for px in range(box.position.x, box.end.x, fw):
+						var size := Vector2i(mini(fw, box.end.x - px), mini(fh, box.end.y - py))
+						_stamp(im, sprite, Rect2i(Vector2i(px, py) * T, size * T), false, false)
+
+
+## Picks [sprite, width, height] (in cells) for a furniture piece.
+func _prop_for(zone: int, w: int, h: int, count: int, index: int) -> Array:
+	match zone:
+		0: return ["potted_palm", 2, 2]
+		1: return ["dj_booth", 4, 2] if w >= 4 else ["speaker", 2, 2]
+		2:
+			if count == 1: return ["table_cocktail", 1, 1]
+			return ["booth_seat", w, h] if count < w * h else ["sofa_pink", 2, 1]
+		3: return ["stove", 2, 2] if h >= 2 else ["kitchen_counter", 2, 1]
+		4:
+			if count == 1: return ["bar_stool", 1, 1]
+			return ["bar_counter", 2, 1] if h == 1 else ["sofa_pink", 2, 1]
+		5: return ["toilet_stall", 1, 1] if count == 1 else ["sink", 1, 1]
+		6: return ["crate", 1, 1] if index % 2 == 0 else ["metal_shelf", 2, 2]
+	return ["crate", 1, 1]
+
+
+func _stamp(im: Image, sprite: String, rect: Rect2i, flip_x: bool, flip_y: bool) -> void:
+	var p: Image = Fx.img(sprite).duplicate()
+	if flip_x:
+		p.flip_x()
+	if flip_y:
+		p.flip_y()
+	p.resize(rect.size.x, rect.size.y, Image.INTERPOLATE_NEAREST)
+	im.blend_rect(p, Rect2i(Vector2i.ZERO, rect.size), rect.position)
+
+
+func _bake_blocks(im: Image, piece: Array, zone: int) -> void:
+	var f: Array = Fx.FURN[zone]
+	for c in piece:
+		var at: Vector2i = c * T
+		im.blit_rect(Fx.img("table_%d" % zone), Rect2i(0, 0, T, T), at)
+		if not piece.has(c + Vector2i(-1, 0)):
+			im.fill_rect(Rect2i(at.x, at.y, 1, T), Color(f[1]))
+		if not piece.has(c + Vector2i(1, 0)):
+			im.fill_rect(Rect2i(at.x + T - 1, at.y, 1, T), Color(f[1]))
+		if not piece.has(c + Vector2i(0, -1)):
+			im.fill_rect(Rect2i(at.x, at.y, T, 2), Color(f[2]))
+		if not piece.has(c + Vector2i(0, 1)):
+			im.fill_rect(Rect2i(at.x, at.y + T - 3, T, 3), Color(f[1]))
 
 
 func _add_glass(cell: Vector2i) -> void:
@@ -320,7 +479,20 @@ func _process(_delta: float) -> void:
 		_beat = beat
 		_overlay.queue_redraw()
 		for p in pickups:
-			p.node.modulate = Color(1.6, 1.6, 1.6) if beat % 2 == 0 else Color(1, 1, 1)
+			p.node.modulate = Color(9, 9, 9) if beat % 2 == 0 else Color(5, 5, 5)
+
+
+func _draw_neon() -> void:
+	for t in _trims:
+		_neon.draw_rect(t[0], t[1])
+	for s in Layout.COLS * Layout.ROWS:
+		var at := _chunk_origin(s) + Vector2(6, -4)
+		var text: String = Fx.ROOM_NAMES[_chunk_zone(s)]
+		var col: Color = Fx.PINK if s % 2 == 0 else Fx.CYAN
+		var width := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		_neon.draw_rect(Rect2(at + Vector2(-3, -9), Vector2(width + 6, 12)), Color("0a0612"))
+		_neon.draw_rect(Rect2(at + Vector2(-3, -9), Vector2(width + 6, 12)), col, false, 1.0)
+		_neon.draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col.lightened(0.4))
 
 
 func _draw_overlay() -> void:
@@ -328,6 +500,6 @@ func _draw_overlay() -> void:
 		var k: int = hash(Vector3i(c.x / 2, c.y / 2, _beat / 2)) % 7
 		if k < 4:
 			var col: Color = DANCE_COLORS[k]
-			_overlay.draw_rect(Rect2(c.x * T + 1, c.y * T + 1, T - 1, T - 1), Color(col, 0.3))
+			_overlay.draw_rect(Rect2(c.x * T + 1, c.y * T + 1, T - 1, T - 1), Color(col, 0.28))
 	if exit_open:
-		_overlay.draw_rect(exit_rect, Color(0.2, 1.0, 0.45, 0.25 if _beat % 2 == 0 else 0.45))
+		_overlay.draw_rect(exit_rect, Color(0.2, 1.0, 0.45, 0.3 if _beat % 2 == 0 else 0.55))

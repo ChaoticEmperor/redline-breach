@@ -66,7 +66,6 @@ func start_floor() -> void:
 		e.setup(self, world, player, z.kind)
 		e.position = world.center(z.cell)
 		world.add_child(e)
-	world.move_child(world.fx, -1)
 	controls.player = player
 	controls.clear()
 	state = "play"
