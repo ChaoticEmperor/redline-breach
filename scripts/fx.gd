@@ -6,6 +6,7 @@ extends Node2D
 const RATE := 22050
 const MAX_DECALS := 320 # per room
 const SPRITE_DIR := "res://assets/sprites/"
+const SPRITE_PX := 4.0
 # Logical texture name -> sliced sprite (tools/slice_sheets.py). Anything
 # without a sprite file falls back to the procedural generator below.
 const SPRITES := {
@@ -68,6 +69,7 @@ static var _img := {}
 static var _snd := {}
 static var _music: AudioStreamWAV
 static var _mats := {}
+static var _paths := {}
 
 var world
 var decal_nodes: Array = [] # one canvas per room (keeps each under the light limit)
@@ -78,6 +80,7 @@ var rings: Array = [] # [pos, radius, max_radius]
 var popups: Array = [] # [pos, text, life, color]
 var flashes: Array = [] # [pos, life]
 var shake := 0.0
+var punch := 0.0 # camera zoom kick, as a fraction of the base zoom
 var _pool: Array = []
 var _next := 0
 var _last := {}
@@ -221,12 +224,37 @@ static func mat(kind: String) -> CanvasItemMaterial:
 
 # ---------------------------------------------------------------- textures
 
+## Path of the sprite file for a texture name, or "" if there is none.
+## AI-sheet sprites win over the CC0 pack; no file means procedural art.
 static func sprite_path(n: String) -> String:
-	return SPRITE_DIR + SPRITES.get(n, n) + ".png"
+	if not _paths.has(n):
+		var file: String = SPRITES.get(n, n) + ".png"
+		var found := ""
+		for dir in [SPRITE_DIR, SPRITE_DIR + "cc0/"]:
+			if ResourceLoader.exists(dir + file):
+				found = dir + file
+				break
+		_paths[n] = found
+	return _paths[n]
 
 
 static func has_sprite(n: String) -> bool:
-	return ResourceLoader.exists(sprite_path(n))
+	return sprite_path(n) != ""
+
+
+## Sprite files hold 4 pixels per world pixel; procedural art is 1:1.
+static func sprite_scale(n: String) -> float:
+	return 1.0 / SPRITE_PX if has_sprite(n) else 1.0
+
+
+## Square copy of an image at `size` pixels, for baking the floor texture.
+static func scaled(n: String, size: int) -> Image:
+	var key := "%s@%d" % [n, size]
+	if not _img.has(key):
+		var im: Image = img(n).duplicate()
+		im.resize(size, size, Image.INTERPOLATE_NEAREST)
+		_img[key] = im
+	return _img[key]
 
 
 static func tex(n: String) -> Texture2D:
@@ -537,7 +565,7 @@ func corpse(kind: String, pos: Vector2, rot: float) -> void:
 	var tint := Color.WHITE
 	if has_sprite("corpse_" + kind) and kind == "runner":
 		tint = Color(1.0, 0.6, 0.6) # shared zombie corpse sprite, reddened
-	_add([1, pos, tex("corpse_" + kind), rot, tint])
+	_add([1, pos, tex("corpse_" + kind), rot, tint, sprite_scale("corpse_" + kind)])
 
 
 func flash(pos: Vector2) -> void:
@@ -551,7 +579,7 @@ func _draw_decals(i: int) -> void:
 			node.draw_rect(Rect2(d[1], d[2]), d[3])
 		else:
 			var t: Texture2D = d[2]
-			node.draw_set_transform(d[1], d[3])
+			node.draw_set_transform(d[1], d[3], Vector2(d[5], d[5]))
 			node.draw_texture(t, -t.get_size() / 2.0, d[4])
 			node.draw_set_transform(Vector2.ZERO, 0.0)
 
@@ -579,8 +607,13 @@ func add_shake(a: float) -> void:
 	shake = maxf(shake, a)
 
 
+func add_punch(a: float) -> void:
+	punch = maxf(punch, a)
+
+
 func _process(delta: float) -> void:
 	shake = maxf(0.0, shake - delta * 28.0)
+	punch = maxf(0.0, punch - delta * 0.35)
 	for p in parts:
 		p[0] += p[1] * delta
 		p[1] *= 0.88
@@ -617,4 +650,7 @@ func _draw() -> void:
 		var a: float = 1.0 - r[1] / r[2]
 		draw_arc(r[0], r[1], 0, TAU, 24, Color(1, 0.8, 0.3, a), 3.0)
 	for p in popups:
-		draw_string(_font, p[0] + Vector2(-40, 0), p[1], HORIZONTAL_ALIGNMENT_CENTER, 80, 8, Color(p[3], minf(1.0, p[2] * 3.0)))
+		# Drawn at 4x size and scaled down so text stays sharp under the camera zoom.
+		draw_set_transform(p[0] + Vector2(-40, 0), 0.0, Vector2(0.25, 0.25))
+		draw_string(_font, Vector2.ZERO, p[1], HORIZONTAL_ALIGNMENT_CENTER, 320, 32, Color(p[3], minf(1.0, p[2] * 3.0)))
+		draw_set_transform(Vector2.ZERO, 0.0)

@@ -42,6 +42,7 @@ var knock := Vector2.ZERO
 var wander := Vector2.ZERO
 var wander_t := 0.0
 var vis: Sprite2D
+var base_scale := 1.0
 
 
 func setup(p_main, p_world, p_player, p_kind: String) -> void:
@@ -69,6 +70,8 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	add_child(shadow)
 	vis = Sprite2D.new()
 	vis.texture = Fx.tex(kind)
+	base_scale = Fx.sprite_scale(kind)
+	vis.scale = Vector2.ONE * base_scale
 	vis.rotation = randf() * TAU
 	vis.modulate = LURK
 	add_child(vis)
@@ -95,7 +98,7 @@ func _physics_process(delta: float) -> void:
 	if state == FUSE:
 		fuse_t -= delta
 		var k := 1.0 - fuse_t / 0.45
-		vis.scale = Vector2.ONE * (1.0 + k * 0.5)
+		vis.scale = Vector2.ONE * base_scale * (1.0 + k * 0.5)
 		vis.modulate = LURK.lerp(Color(6, 3, 1), k)
 		if fuse_t <= 0.0:
 			_explode()
@@ -284,6 +287,8 @@ func _explode() -> void:
 	fx.ring(pos, BLAST)
 	fx.play("boom", 1.0, -3.0)
 	fx.add_shake(8.0)
+	fx.add_punch(0.08)
+	world.flash(pos, Color("ffb040"), 6.0)
 	main.on_kill(self, false)
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - pos

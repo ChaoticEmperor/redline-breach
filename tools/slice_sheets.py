@@ -39,9 +39,12 @@ PROPS = ["sofa_pink", "table_cocktail", "bar_counter", "bar_stool",
 FLOORS = ["concrete", "dancefloor", "vip_carpet", "kitchen_tile",
           "bar_planks", "restroom_tile", "corridor_carpet", "elevator_steel"]
 
-CHAR_MAX = 32   # longest side of the largest character, in game pixels
-PROP_MAX = 32   # longest side of the largest prop
-FLOOR_SIZE = 32  # floor tiles are square and cover 2x2 map cells
+# Sprites are stored at 4 pixels per world pixel and drawn at 1/4 scale, so
+# they stay sharp on a Full HD canvas.
+PX_PER_UNIT = 4
+CHAR_MAX = 32 * PX_PER_UNIT    # longest side of the largest character
+PROP_MAX = 32 * PX_PER_UNIT    # longest side of the largest prop
+FLOOR_SIZE = 32 * PX_PER_UNIT  # floor tiles are square and cover 2x2 map cells
 GRID = 8        # blob detection runs on a mask reduced by this factor
 
 

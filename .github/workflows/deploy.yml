@@ -47,6 +47,9 @@ jobs:
       - name: Export Web build
         run: mkdir -p web && godot --headless --export-release "Web" web/index.html && test -f web/index.wasm
 
+      - name: Add PWA manifest and icons
+        run: cp web_template/manifest.webmanifest web_template/icon-192.png web_template/icon-512.png web/
+
       - name: Deploy to Firebase (develop channel)
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         uses: FirebaseExtended/action-hosting-deploy@v0
