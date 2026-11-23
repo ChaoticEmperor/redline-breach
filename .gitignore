@@ -1,0 +1,7 @@
+# Godot
+.godot/
+# Web export output (built in CI)
+web/
+# Firebase
+.firebase/
+firebase-debug.log
