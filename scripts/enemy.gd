@@ -1,0 +1,289 @@
+extends CharacterBody2D
+## Zombies. Shambler: slow, grabs. Runner: fast, fragile, grabs.
+## Bloater: slow, tanky, swells and explodes on contact or death.
+
+const Fx = preload("res://scripts/fx.gd")
+const World = preload("res://scripts/world.gd")
+
+enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
+
+const SIGHT := 150.0
+const BLAST := 44.0
+const STATS := {
+	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100},
+	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150},
+	"bloater": {"hp": 5, "speed": 26.0, "r": 7.0, "score": 250},
+}
+
+var main
+var world
+var player
+var fx
+var kind := "shambler"
+var hp := 1
+var speed := 40.0
+var radius := 5.0
+var state := IDLE
+var dead := false
+var target := Vector2.ZERO
+var last_seen := Vector2.ZERO
+var sees := false
+var lost_t := 0.0
+var think_t := 0.0
+var route := PackedVector2Array()
+var route_i := 0
+var repath_t := 0.0
+var down_t := 0.0
+var fuse_t := 0.0
+var bash_t := 0.0
+var stagger_t := 0.0
+var knock := Vector2.ZERO
+var wander := Vector2.ZERO
+var wander_t := 0.0
+var vis: Sprite2D
+
+
+func setup(p_main, p_world, p_player, p_kind: String) -> void:
+	main = p_main
+	world = p_world
+	player = p_player
+	fx = world.fx
+	kind = p_kind
+	var st: Dictionary = STATS[kind]
+	hp = st.hp
+	speed = st.speed * randf_range(0.9, 1.1)
+	radius = st.r
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	collision_layer = World.L_ENEMY
+	collision_mask = World.SOLID
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = radius
+	shape.shape = circle
+	add_child(shape)
+	vis = Sprite2D.new()
+	vis.texture = Fx.tex(kind)
+	vis.rotation = randf() * TAU
+	add_child(vis)
+	think_t = randf() * 0.2
+	world.enemy_list.append(self)
+
+
+func is_down() -> bool:
+	return state == DOWN and not dead
+
+
+func _physics_process(delta: float) -> void:
+	if dead:
+		return
+	knock = knock.move_toward(Vector2.ZERO, 500.0 * delta)
+	if state == DOWN:
+		down_t -= delta
+		velocity = knock
+		move_and_slide()
+		if down_t <= 0.0:
+			state = CHASE
+			vis.modulate = Color.WHITE
+		return
+	if state == FUSE:
+		fuse_t -= delta
+		var k := 1.0 - fuse_t / 0.45
+		vis.scale = Vector2.ONE * (1.0 + k * 0.5)
+		vis.modulate = Color(1, 1, 1).lerp(Color(3, 1.5, 0.5), k)
+		if fuse_t <= 0.0:
+			_explode()
+		return
+
+	var pp: Vector2 = player.global_position
+	var to_p := pp - global_position
+	var dist := to_p.length()
+	stagger_t = maxf(0.0, stagger_t - delta)
+
+	think_t -= delta
+	if think_t <= 0.0:
+		think_t = 0.2
+		sees = player.alive and dist < SIGHT and world.los(global_position, pp)
+		if sees:
+			last_seen = pp
+			lost_t = 0.0
+			if state != CHASE:
+				alert()
+		elif state == CHASE:
+			lost_t += 0.2
+			if lost_t > 4.0 or not player.alive:
+				state = INVESTIGATE
+				target = last_seen
+
+	var want := Vector2.ZERO
+	match state:
+		IDLE:
+			wander_t -= delta
+			if wander_t <= 0.0:
+				wander_t = randf_range(1.0, 3.0)
+				wander = Vector2.RIGHT.rotated(randf() * TAU) * 0.3 if randf() < 0.5 else Vector2.ZERO
+			want = wander
+		INVESTIGATE:
+			want = _follow(target, delta)
+			if global_position.distance_to(target) < 14.0:
+				state = IDLE
+		CHASE:
+			if player.grab_t > 0.0 and player.grabbers.has(self):
+				want = Vector2.ZERO
+			elif sees and dist < 90.0:
+				want = to_p / maxf(dist, 0.01)
+			else:
+				want = _follow(pp, delta)
+			if player.alive and dist < radius + 8.0:
+				if kind == "bloater":
+					_start_fuse()
+					return
+				player.grab(self)
+
+	if state != IDLE:
+		for o in world.enemy_list:
+			if o != self:
+				var d: Vector2 = global_position - o.global_position
+				var l := d.length_squared()
+				if l < 144.0 and l > 0.01:
+					want += d.normalized() * 0.5
+	velocity = want * speed * (0.3 if stagger_t > 0.0 else 1.0) + knock
+	if want.length() > 0.1:
+		vis.rotation = lerp_angle(vis.rotation, want.angle(), 0.2)
+	move_and_slide()
+
+	# Alerted zombies batter down doors and smash through glass in their way.
+	var blocked := false
+	if state != IDLE:
+		for i in get_slide_collision_count():
+			var col = get_slide_collision(i).get_collider()
+			if col == null:
+				continue
+			if col.has_meta("door"):
+				blocked = true
+				bash_t += delta
+				if bash_t > 0.6:
+					bash_t = 0.0
+					world.kick_door(col.get_meta("door"), want, false)
+			elif col.has_meta("glass") and state == CHASE:
+				blocked = true
+				bash_t += delta
+				if bash_t > 0.3:
+					bash_t = 0.0
+					world.break_glass(col.get_meta("glass"))
+	if not blocked:
+		bash_t = maxf(0.0, bash_t - delta)
+
+
+func _follow(dest: Vector2, delta: float) -> Vector2:
+	repath_t -= delta
+	if repath_t <= 0.0:
+		repath_t = randf_range(0.4, 0.6)
+		route = world.path(global_position, dest)
+		route_i = 1
+	while route_i < route.size() and global_position.distance_to(route[route_i]) < 5.0:
+		route_i += 1
+	var goal := route[route_i] if route_i < route.size() else dest
+	var d := goal - global_position
+	return d.normalized() if d.length() > 2.0 else Vector2.ZERO
+
+
+# ---------------------------------------------------------------- reactions
+
+func hear(pos: Vector2) -> void:
+	if dead or state == CHASE or state == DOWN or state == FUSE:
+		return
+	state = INVESTIGATE
+	target = pos
+	repath_t = 0.0
+
+
+func alert() -> void:
+	if dead or state == CHASE or state == DOWN or state == FUSE:
+		return
+	state = CHASE
+	repath_t = 0.0
+	if randf() < 0.5:
+		fx.play("groan", randf_range(0.8, 1.3), -12.0)
+	for o in world.enemy_list:
+		if o != self and o.state == IDLE and o.global_position.distance_to(global_position) < 70.0:
+			o.alert()
+
+
+func hit(dmg: int, dir: Vector2, kb := 0.0) -> void:
+	if dead:
+		return
+	hp -= dmg
+	knock = dir * kb
+	fx.blood(global_position, dir, 5 + dmg * 3)
+	if hp <= 0:
+		_die(dir)
+	else:
+		stagger_t = 0.25
+		alert()
+
+
+func knockdown(dir: Vector2) -> void:
+	if dead or state == FUSE:
+		return
+	player.grabbers.erase(self)
+	if kind == "bloater":
+		# Too heavy to floor: shove it back instead.
+		knock = dir * 130.0
+		stagger_t = 0.5
+		alert()
+		return
+	state = DOWN
+	down_t = 1.8
+	knock = dir * 170.0
+	vis.modulate = Color(0.6, 0.6, 0.75)
+	fx.play("hit")
+
+
+func execute(dir: Vector2) -> void:
+	if dead:
+		return
+	fx.blood(global_position, dir, 30, 16.0)
+	_die(dir, true)
+
+
+func _die(dir: Vector2, executed := false) -> void:
+	if kind == "bloater":
+		_start_fuse()
+		return
+	dead = true
+	world.enemy_list.erase(self)
+	player.grabbers.erase(self)
+	fx.corpse(kind, global_position, dir.angle() + PI if dir != Vector2.ZERO else vis.rotation)
+	fx.blood(global_position, dir, 14)
+	fx.play("die")
+	main.on_kill(self, executed)
+	queue_free()
+
+
+func _start_fuse() -> void:
+	if state == FUSE or dead:
+		return
+	state = FUSE
+	fuse_t = 0.45
+	velocity = Vector2.ZERO
+	fx.play("fuse")
+
+
+func _explode() -> void:
+	dead = true
+	world.enemy_list.erase(self)
+	var pos := global_position
+	fx.blood(pos, Vector2.ZERO, 70, 46.0)
+	fx.ring(pos, BLAST)
+	fx.play("boom", 1.0, -3.0)
+	fx.add_shake(8.0)
+	main.on_kill(self, false)
+	for e in world.enemy_list.duplicate():
+		var d: Vector2 = e.global_position - pos
+		if d.length() < BLAST + 2.0:
+			e.hit(4, d.normalized(), 200.0)
+	if player.alive and player.global_position.distance_to(pos) < BLAST and world.ray(pos, player.global_position, World.L_WALL).is_empty():
+		player.die("BLOWN APART")
+	world.blast(pos, BLAST)
+	world.noise(pos, 500.0)
+	queue_free()
