@@ -3,11 +3,12 @@ extends CanvasLayer
 ## moves, right half aims and fires at full tilt) plus KICK/EXEC and DASH
 ## buttons. Falls back to WASD + mouse. Gameplay only reads `move`, `aim`,
 ## `fire` and `take()`; tests set `override` and drive those directly.
+##
+## Like the HUD, layout is in units: the screen is 360 units tall and `W`
+## wide, so the buttons stay in the right-hand corner on any aspect ratio.
 
 const STICK_R := 34.0
 const BTN_R := 21.0
-const BTN_KICK := Vector2(606, 128)
-const BTN_DASH := Vector2(606, 182)
 const SWAP_ZONE := Rect2(0, 0, 132, 36)
 
 var move := Vector2.ZERO
@@ -17,6 +18,8 @@ var touch_mode := false
 var override := false
 var player
 var q := {"kick": false, "dash": false, "swap": false, "any": false, "restart": false}
+var u := 3.0
+var W := 640.0
 var _l_id := -1
 var _l_origin := Vector2.ZERO
 var _l_vec := Vector2.ZERO
@@ -34,6 +37,21 @@ func _ready() -> void:
 	_canvas = Node2D.new()
 	_canvas.draw.connect(_draw_ui)
 	add_child(_canvas)
+	_measure()
+
+
+func _measure() -> void:
+	var size := get_viewport().get_visible_rect().size
+	u = size.y / 360.0
+	W = size.x / u
+
+
+func kick_pos() -> Vector2:
+	return Vector2(W - 34.0, 128.0)
+
+
+func dash_pos() -> Vector2:
+	return Vector2(W - 34.0, 182.0)
 
 
 ## Returns true once per queued press.
@@ -54,20 +72,20 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		touch_mode = true
-		var p: Vector2 = event.position
+		var p: Vector2 = event.position / u
 		if event.pressed:
 			q.any = true
-			if p.distance_to(BTN_KICK) < BTN_R + 6.0:
+			if p.distance_to(kick_pos()) < BTN_R + 6.0:
 				q.kick = true
-			elif p.distance_to(BTN_DASH) < BTN_R + 6.0:
+			elif p.distance_to(dash_pos()) < BTN_R + 6.0:
 				q.dash = true
 			elif SWAP_ZONE.has_point(p):
 				q.swap = true
-			elif p.x < 320.0 and _l_id == -1:
+			elif p.x < W / 2.0 and _l_id == -1:
 				_l_id = event.index
 				_l_origin = p
 				_l_vec = Vector2.ZERO
-			elif p.x >= 320.0 and _r_id == -1:
+			elif p.x >= W / 2.0 and _r_id == -1:
 				_r_id = event.index
 				_r_origin = p
 				_r_vec = Vector2.ZERO
@@ -79,10 +97,11 @@ func _input(event: InputEvent) -> void:
 				_r_id = -1
 				_r_vec = Vector2.ZERO
 	elif event is InputEventScreenDrag:
+		var p: Vector2 = event.position / u
 		if event.index == _l_id:
-			_l_vec = ((event.position - _l_origin) / STICK_R).limit_length(1.0)
+			_l_vec = ((p - _l_origin) / STICK_R).limit_length(1.0)
 		elif event.index == _r_id:
-			_r_vec = ((event.position - _r_origin) / STICK_R).limit_length(1.0)
+			_r_vec = ((p - _r_origin) / STICK_R).limit_length(1.0)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		touch_mode = false
 		q.any = true
@@ -100,6 +119,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	_measure()
 	_canvas.queue_redraw()
 	if override:
 		return
@@ -124,24 +144,24 @@ func _process(_delta: float) -> void:
 func _draw_ui() -> void:
 	if not touch_mode:
 		return
-	_stick(_l_origin if _l_id != -1 else Vector2(74, 286), _l_vec, _l_id != -1, Color(0.02, 0.85, 0.91))
-	_stick(_r_origin if _r_id != -1 else Vector2(500, 286), _r_vec, _r_id != -1, Color(1.0, 0.16, 0.43))
+	_stick(_l_origin if _l_id != -1 else Vector2(74, 286), _l_vec, _l_id != -1, Color(0.02, 0.85, 0.91), false)
+	_stick(_r_origin if _r_id != -1 else Vector2(W - 140, 286), _r_vec, _r_id != -1, Color(1.0, 0.16, 0.43), true)
 	var label := "KICK"
 	if player != null and is_instance_valid(player):
 		label = player.context()
-	_button(BTN_KICK, label, Color(0.98, 0.94, 0.0) if label == "EXEC" else Color(1.0, 0.16, 0.43))
-	_button(BTN_DASH, "DASH", Color(0.02, 0.85, 0.91))
+	_button(kick_pos(), label, Color(0.98, 0.94, 0.0) if label == "EXEC" else Color(1.0, 0.16, 0.43))
+	_button(dash_pos(), "DASH", Color(0.02, 0.85, 0.91))
 
 
-func _stick(at: Vector2, vec: Vector2, active: bool, col: Color) -> void:
+func _stick(at: Vector2, vec: Vector2, active: bool, col: Color, fires: bool) -> void:
 	var a := 0.55 if active else 0.22
-	_canvas.draw_arc(at, STICK_R, 0, TAU, 32, Color(col, a), 2.0)
-	_canvas.draw_circle(at + vec * STICK_R, 13.0, Color(col, a))
-	if vec.length() > 0.75 and at.x > 320.0:
-		_canvas.draw_arc(at, STICK_R + 4.0, 0, TAU, 32, Color(1, 1, 1, 0.6), 1.0)
+	_canvas.draw_arc(at * u, STICK_R * u, 0, TAU, 48, Color(col, a), 2.0 * u, true)
+	_canvas.draw_circle((at + vec * STICK_R) * u, 13.0 * u, Color(col, a))
+	if fires and vec.length() > 0.75:
+		_canvas.draw_arc(at * u, (STICK_R + 4.0) * u, 0, TAU, 48, Color(1, 1, 1, 0.6), u, true)
 
 
 func _button(at: Vector2, text: String, col: Color) -> void:
-	_canvas.draw_circle(at, BTN_R, Color(col, 0.22))
-	_canvas.draw_arc(at, BTN_R, 0, TAU, 32, Color(col, 0.8), 2.0)
-	_canvas.draw_string(_font, at + Vector2(-BTN_R, 3), text, HORIZONTAL_ALIGNMENT_CENTER, BTN_R * 2.0, 8, Color(1, 1, 1, 0.9))
+	_canvas.draw_circle(at * u, BTN_R * u, Color(col, 0.22))
+	_canvas.draw_arc(at * u, BTN_R * u, 0, TAU, 48, Color(col, 0.8), 2.0 * u, true)
+	_canvas.draw_string(_font, (at + Vector2(-BTN_R, 3)) * u, text, HORIZONTAL_ALIGNMENT_CENTER, BTN_R * 2.0 * u, int(8 * u), Color(1, 1, 1, 0.9))

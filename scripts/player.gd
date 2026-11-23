@@ -10,7 +10,7 @@ const DASH_SPEED := 340.0
 const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
-const ZOOM := 1.5
+const ZOOM := 3.6 # on the 1920x1080 canvas
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
 	"pistol": {"cd": 0.2, "pellets": 1, "spread": 0.025, "dmg": 2, "range": 420.0, "loud": 400.0, "pickup": 10},
@@ -104,6 +104,7 @@ func _process(delta: float) -> void:
 	var look := aim * 26.0 if alive else Vector2.ZERO
 	var jitter: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * fx.shake
 	cam.offset = cam.offset.lerp(look, minf(1.0, delta * 6.0)) + jitter
+	cam.zoom = Vector2.ONE * ZOOM * (1.0 + fx.punch)
 	muzzle_light.energy = maxf(0.0, muzzle_light.energy - delta * 40.0)
 	var swing := 0.0
 	if swing_t > 0.0:
@@ -193,6 +194,7 @@ func give(kind: String) -> void:
 func _set_weapon(kind: String) -> void:
 	weapon = kind
 	body.texture = Fx.tex("player_" + kind)
+	body.scale = Vector2.ONE * Fx.sprite_scale("player_" + kind)
 	wep.visible = not Fx.has_sprite("player_" + kind)
 	wep.texture = Fx.tex("w_" + kind)
 	wep.position = Vector2(3, 3)
@@ -228,6 +230,7 @@ func _fire() -> void:
 	muzzle_light.energy = 2.5
 	fx.play(weapon)
 	fx.add_shake(5.0 if weapon == "shotgun" else 2.5)
+	fx.add_punch(0.05 if weapon == "shotgun" else 0.025)
 	main.shots += 1
 	world.noise(global_position, w.loud)
 	if ammo[weapon] <= 0:
