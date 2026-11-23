@@ -1,0 +1,67 @@
+name: Build, Test & Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project
+        run: godot --headless --import
+
+      - name: Script parse/load check
+        # Godot exits 0 even when a script fails to parse, so also scan the log.
+        run: |
+          godot --headless --quit 2>&1 | tee parse.log
+          ! grep -qE "SCRIPT ERROR|Parse Error" parse.log
+
+      - name: Headless smoke test
+        run: godot --headless -s tests/smoke_test.gd
+
+      - name: Export Web build
+        run: mkdir -p web && godot --headless --export-release "Web" web/index.html && test -f web/index.wasm
+
+      - name: Deploy to Firebase (develop channel)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: project-dweller
+          channelId: develop
+          expires: 30d
+          firebaseToolsVersion: 13.29.1
+
+      - name: Deploy to Firebase (live)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: project-dweller
+          channelId: live
+          firebaseToolsVersion: 13.29.1
