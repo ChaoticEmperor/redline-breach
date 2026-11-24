@@ -108,7 +108,7 @@ func build(layout: Dictionary) -> void:
 		var spr := Sprite2D.new()
 		spr.texture = Fx.tex("w_" + p.kind)
 		spr.position = center(p.cell)
-		spr.scale = Vector2(1.5, 1.5)
+		spr.scale = Vector2.ONE * 1.5 * Fx.sprite_scale("w_" + p.kind)
 		add_child(spr)
 		pickups.append({"kind": p.kind, "pos": spr.position, "node": spr})
 

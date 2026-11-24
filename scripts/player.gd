@@ -213,6 +213,7 @@ func _set_weapon(kind: String) -> void:
 	body.scale = Vector2.ONE * Fx.sprite_scale("player_" + kind)
 	wep.visible = not Fx.has_sprite("player_" + kind)
 	wep.texture = Fx.tex("w_" + kind)
+	wep.scale = Vector2.ONE * Fx.sprite_scale("w_" + kind)
 	wep.position = Vector2(3, 3)
 
 

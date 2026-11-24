@@ -15,6 +15,9 @@ const SPRITES := {
 	"runner": "chars/zombie_runner", "bloater": "chars/zombie_bloater",
 	"corpse_shambler": "chars/corpse_zombie", "corpse_runner": "chars/corpse_zombie",
 	"corpse_bloater": "chars/corpse_zombie", "corpse_player": "chars/corpse_player",
+	# Weapons drawn with Atelier (tools/draw_weapons.py): top-down and HUD side views.
+	"w_pipe": "weapons/top_pipe", "w_pistol": "weapons/top_pistol", "w_shotgun": "weapons/top_shotgun",
+	"hud_pipe": "weapons/hud_pipe", "hud_pistol": "weapons/hud_pistol", "hud_shotgun": "weapons/hud_shotgun",
 }
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
@@ -208,7 +211,7 @@ static func warm() -> void:
 			"pickup", "dash", "exec", "grab", "clear", "fuse", "empty"]:
 		snd(n)
 	for n in ["player_pipe", "player_pistol", "player_shotgun", "light", "cone", "shambler", "runner", "bloater", "glass", "door", "door_locked",
-			"w_pipe", "w_pistol", "w_shotgun", "glow", "shadow", "vignette",
+			"w_pipe", "w_pistol", "w_shotgun", "hud_pipe", "hud_pistol", "hud_shotgun", "glow", "shadow", "vignette",
 			"corpse_shambler", "corpse_runner", "corpse_bloater", "corpse_player"]:
 		tex(n)
 
@@ -284,6 +287,8 @@ static func _make(n: String) -> Image:
 		var p := n.split("_")
 		var f: Array = FLOORS[int(p[1])]
 		return _tile(Color(f[3] if p[2] == "1" else f[0]), Color(f[1]), f[2], int(p[1]) * 7 + int(p[2]))
+	if n.begins_with("hud_"):
+		return _make("w_" + n.substr(4)) # no side-view art: reuse the top-down weapon
 	if n.begins_with("table_"):
 		return _furniture(FURN[int(n.split("_")[1])])
 	match n:
