@@ -58,7 +58,10 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
   its top face and, below it, its front face.
 - **Scale:** character and prop sheets hold 2 pixels per world pixel, so one map cell is 32 pixels. A prop
   covering `fw` x `fh` cells is `fw*32` wide and `fh*32 + height` tall and stands on its bottom edge. Characters
-  stand with their feet on row 60 of a 64x64 cell, centred on column 32. Weapons hold 4 pixels per world pixel.
+  are about 42 pixels tall and stand with their feet on row 60 of a 64x64 cell, centred on column 32; both sheets
+  are shown at half scale, so characters and props share one pixel size. Character canvases set `grit = 0`
+  (clean cel bands, no dithering) and use `ink()` for coloured outlines, then `contour()` for the dark silhouette
+  edge. Weapons hold 4 pixels per world pixel.
 - **Form before detail:** build shapes from the lit primitives with a 4-5 step `ramp()`, then add detail
   (seams, tears, wounds, labels, glints) on top. Flat `rect` fills on their own read as blocky; that is what
   got the first version of these sheets rejected.

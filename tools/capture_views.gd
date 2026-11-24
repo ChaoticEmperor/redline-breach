@@ -14,7 +14,7 @@ const Fx = preload("res://scripts/fx.gd")
 const Layout = preload("res://scripts/layout.gd")
 
 const ZONES := ["entry", "dancefloor", "vip", "kitchen", "bar", "restroom", "storage", "staff", "elevator"]
-const FIGURE_PX := 52.0 # height of the drawn player figure in sheet pixels
+const FIGURE_PX := 42.0 # height of the drawn player figure in sheet pixels
 const SETTLE_FRAMES := 40
 const FIRST_BEAT := 40 # world beats (250 ms each) before the first shot
 const BEAT_STEP := 32 # ... and between shots

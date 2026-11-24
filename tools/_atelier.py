@@ -25,9 +25,16 @@ LIGHT = (-0.52, -0.62, 0.59)       # towards the light: upper left, out of the s
 BAYER = ((0.0, 0.5), (0.75, 0.25))
 
 
-def ramp(base: str, n: int = 5, lo: float = 0.34, hi: float = 1.18) -> list[str]:
+def ink(shades: list[str], amount: float = 0.55) -> str:
+    """Outline colour for a material: its darkest shade, darkened further.
+    Coloured outlines inside a sprite stay readable where black turns to mud."""
+    r, g, b = (int(shades[0][i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02x%02x%02x" % tuple(int(c * amount) for c in (r, g, b))
+
+
+def ramp(base: str, n: int = 5, lo: float = 0.34, hi: float = 1.18, warm: float = 0.0) -> list[str]:
     """Dark-to-light ramp around a base colour. Shadows drift towards violet
-    and lose a little saturation; lights drift warm."""
+    and lose a little saturation; with `warm`, lights drift towards yellow."""
     r, g, b = (int(base[i:i + 2], 16) / 255 for i in (1, 3, 5))
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
     out = []
@@ -35,7 +42,10 @@ def ramp(base: str, n: int = 5, lo: float = 0.34, hi: float = 1.18) -> list[str]
         t = i / (n - 1)
         vv = min(1.0, v * (lo + (hi - lo) * t))
         turn = ((0.75 - h + 0.5) % 1.0) - 0.5          # shortest way round the hue wheel to violet
-        hh = (h + turn * 0.2 * (1 - t) ** 2) % 1.0 if s > 0.05 else h
+        glow = ((0.13 - h + 0.5) % 1.0) - 0.5          # ... and to warm yellow
+        if abs(glow) > 0.2:
+            glow = 0.0                                  # only already-warm hues drift warmer; blue stays blue
+        hh = (h + turn * 0.2 * (1 - t) ** 2 + glow * warm * t * t) % 1.0 if s > 0.05 else h
         ss = min(1.0, s * (1.15 - 0.45 * t))
         out.append("#%02x%02x%02x" % tuple(int(c * 255) for c in colorsys.hsv_to_rgb(hh, ss, vv)))
     return out
@@ -47,6 +57,7 @@ class Canvas:
     def __init__(self, w: int, h: int):
         self.w, self.h = w, h
         self.px = [[None] * w for _ in range(h)]
+        self.grit = 0.9  # ordered-dither strength on lit forms; 0 gives clean cel bands
 
     # ------------------------------------------------------------ basics
     def get(self, x, y):
@@ -108,7 +119,7 @@ class Canvas:
                     continue
                 nz = math.sqrt(1.0 - d)
                 li = nx * LIGHT[0] * (1 - flat) + ny * LIGHT[1] * (1 - flat) + (nz + flat) * LIGHT[2]
-                pts[(x, y)] = spec if spec and li > 0.9 else self._tone(shades, li * 1.25, x, y)
+                pts[(x, y)] = spec if spec and li > 0.9 else self._tone(shades, li * 1.25, x, y, self.grit)
         self._fill(pts, outline)
 
     def limb(self, x0, y0, x1, y1, r, shades, outline=K, r1=None):
@@ -129,7 +140,7 @@ class Canvas:
                     continue
                 nz = math.sqrt(1.0 - d)
                 li = ox / rad * LIGHT[0] + oy / rad * LIGHT[1] + nz * LIGHT[2]
-                pts[(x, y)] = self._tone(shades, li * 1.25, x, y)
+                pts[(x, y)] = self._tone(shades, li * 1.25, x, y, self.grit)
         self._fill(pts, outline)
 
     def slab(self, x, y, w, h, shades, outline=K, bevel=1, curve=0.0, grit=0.9):
@@ -163,8 +174,47 @@ class Canvas:
                 if rim and d > 0.72:
                     pts[(x, y)] = rim
                 else:
-                    pts[(x, y)] = self._tone(shades, 0.35 - nx * 0.45 - ny * 0.55, x, y)
+                    pts[(x, y)] = self._tone(shades, 0.35 - nx * 0.45 - ny * 0.55, x, y, self.grit)
         self._fill(pts, outline)
+
+    def contour(self, c=K, x0=0, y0=0, x1=None, y1=None, skip=()):
+        """Recolours the outermost opaque pixels (the silhouette edge) to `c`,
+        leaving coloured outlines between parts as they are."""
+        x1 = self.w if x1 is None else x1
+        y1 = self.h if y1 is None else y1
+        edge = []
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                cur = self.px[y][x]
+                if cur is None or cur in skip:
+                    continue
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    n = self.get(x + dx, y + dy) if (x0 <= x + dx < x1 and y0 <= y + dy < y1) else None
+                    if n is None or n in skip:
+                        edge.append((x, y))
+                        break
+        for x, y in edge:
+            self.px[y][x] = c
+
+    def despeckle(self, x0=0, y0=0, x1=None, y1=None):
+        """Removes lone pixels: one that differs from all four neighbours, at
+        least three of which agree, takes their colour."""
+        x1 = self.w if x1 is None else x1
+        y1 = self.h if y1 is None else y1
+        fixes = []
+        for y in range(y0 + 1, y1 - 1):
+            for x in range(x0 + 1, x1 - 1):
+                cur = self.px[y][x]
+                if cur is None:
+                    continue
+                around = [self.px[y][x + 1], self.px[y][x - 1], self.px[y + 1][x], self.px[y - 1][x]]
+                if cur in around:
+                    continue
+                for cand in set(around):
+                    if cand is not None and around.count(cand) >= 3:
+                        fixes.append((x, y, cand))
+        for x, y, c in fixes:
+            self.px[y][x] = c
 
     def outline(self, c=K, x0=0, y0=0, x1=None, y1=None, skip=()):
         x1 = self.w if x1 is None else x1

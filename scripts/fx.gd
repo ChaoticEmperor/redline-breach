@@ -9,7 +9,7 @@ const SPRITE_DIR := "res://assets/sprites/"
 const SPRITE_PX := 4.0
 const PropAtlas = preload("res://scripts/prop_atlas.gd")
 const CELL := 64          # one pose in the character sheet
-const ART_SCALE := 0.4    # character sheet pixels -> world pixels
+const ART_SCALE := 0.5    # character sheet pixels -> world pixels (same pixel size as the props)
 # who -> [sheet row, {animation: [first frame, frames, fps, loops]}]
 const ANIMS := {
 	"player": [0, {"idle": [0, 4, 5.0, true], "run": [4, 6, 13.0, true], "kick": [10, 2, 16.0, false], "death": [12, 3, 7.0, false]}],
