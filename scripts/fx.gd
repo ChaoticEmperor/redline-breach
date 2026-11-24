@@ -32,6 +32,8 @@ const SPRITES := {
 	"hud_pipe": "weapons/hud_pipe", "hud_pistol": "weapons/hud_pistol", "hud_shotgun": "weapons/hud_shotgun",
 	# 3/4-view sheets drawn with Atelier (tools/draw_characters.py, tools/draw_props.py).
 	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
+	# The player, converted from a reference image (tools/convert_reference.py).
+	"player_v3": "chars/sheet_player_v3",
 }
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
@@ -86,6 +88,11 @@ static var _img := {}
 static var _snd := {}
 static var _music: AudioStreamWAV
 static var _mats := {}
+# The converted player sheet: 96px cells, 3 sheet pixels per world pixel (2 screen pixels per
+# art pixel at 1080p), feet on row 90, figure 78px tall, weapon held 37px above the feet (chest height).
+# animation: [first frame, frames, fps, loops]
+const PLAYER_V3 := {"idle": [0, 2, 2.2, true], "run": [2, 4, 8.5, true], "kick": [6, 1, 1.0, false], "death": [7, 1, 1.0, false]}
+
 static var _paths := {}
 static var _frames := {}
 static var _props := {}
@@ -252,19 +259,30 @@ static func frames(who: String) -> SpriteFrames:
 	if not _frames.has(who):
 		var sf := SpriteFrames.new()
 		sf.remove_animation("default")
-		var row: int = ANIMS[who][0]
-		for anim in ANIMS[who][1]:
-			var d: Array = ANIMS[who][1][anim]
+		var a := art(who)
+		var row: int = 0 if a.sheet == "player_v3" else ANIMS[who][0]
+		var anims: Dictionary = PLAYER_V3 if a.sheet == "player_v3" else ANIMS[who][1]
+		for anim in anims:
+			var d: Array = anims[anim]
 			sf.add_animation(anim)
 			sf.set_animation_speed(anim, d[2])
 			sf.set_animation_loop(anim, d[3])
 			for i in d[1]:
 				var at := AtlasTexture.new()
-				at.atlas = tex("chars_v2")
-				at.region = Rect2((d[0] + i) * CELL, row * CELL, CELL, CELL)
+				at.atlas = tex(a.sheet)
+				at.region = Rect2((d[0] + i) * a.cell, row * a.cell, a.cell, a.cell)
 				sf.add_frame(anim, at)
 		_frames[who] = sf
 	return _frames[who]
+
+
+## How a character's sheet is laid out and shown: sheet name, cell size, scale to
+## world pixels, the row its feet stand on, its height and shoulder height in
+## sheet pixels. The player uses the converted sheet when that file exists.
+static func art(who: String) -> Dictionary:
+	if who == "player" and has_sprite("player_v3"):
+		return {"sheet": "player_v3", "cell": 96, "scale": 1.0 / 3.0, "feet": 90, "height": 78, "shoulder": 37}
+	return {"sheet": "chars_v2", "cell": CELL, "scale": ART_SCALE, "feet": 60, "height": 42, "shoulder": 26}
 
 
 static func frame_tex(who: String, anim: String, i: int) -> Texture2D:
@@ -683,8 +701,9 @@ func slash(pos: Vector2, angle: float) -> void:
 	slashes.append([pos, angle, 0.14])
 
 
-func ghost(texture: Texture2D, pos: Vector2, flipped: bool) -> void:
-	ghosts.append([texture, pos, flipped, 0.22])
+## `half` is half the frame's width in world pixels; `lift` how far its centre is above the feet.
+func ghost(texture: Texture2D, pos: Vector2, flipped: bool, half: float, lift: float) -> void:
+	ghosts.append([texture, pos, flipped, 0.22, half, lift])
 
 
 func add_kick(v: Vector2) -> void:
@@ -813,8 +832,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	for g in ghosts:
 		# Dash after-image: the body frame, tinted and fading.
-		var half := CELL * ART_SCALE / 2.0
-		var at: Vector2 = g[1] + Vector2(half if g[2] else -half, -half - 28.0 * ART_SCALE)
+		var half: float = g[4]
+		var at: Vector2 = g[1] + Vector2(half if g[2] else -half, -half - g[5])
 		draw_texture_rect(g[0], Rect2(at, Vector2(-half * 2.0 if g[2] else half * 2.0, half * 2.0)), false,
 				Color(0.3, 0.9, 1.0, g[3] * 2.4))
 	for s in slashes:

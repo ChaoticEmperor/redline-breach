@@ -14,7 +14,6 @@ const Fx = preload("res://scripts/fx.gd")
 const Layout = preload("res://scripts/layout.gd")
 
 const ZONES := ["entry", "dancefloor", "vip", "kitchen", "bar", "restroom", "storage", "staff", "elevator"]
-const FIGURE_PX := 42.0 # height of the drawn player figure in sheet pixels
 const SETTLE_FRAMES := 40
 const FIRST_BEAT := 40 # world beats (250 ms each) before the first shot
 const BEAT_STEP := 32 # ... and between shots
@@ -104,9 +103,9 @@ func _run() -> void:
 			"beat": world._beat,
 			"cell": [cell.x, cell.y],
 			"camera_zoom": zoom,
-			"art_scale": Fx.ART_SCALE,
-			"figure_sheet_px": FIGURE_PX,
-			"char_height_ratio": FIGURE_PX * Fx.ART_SCALE * zoom / visible.y,
+			"art_scale": Fx.art("player").scale,
+			"figure_sheet_px": Fx.art("player").height,
+			"char_height_ratio": Fx.art("player").height * Fx.art("player").scale * zoom / visible.y,
 		}
 		var f := FileAccess.open(out.path_join("actual_%s.json" % view), FileAccess.WRITE)
 		f.store_string(JSON.stringify(info, "  ") + "\n")

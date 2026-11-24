@@ -27,7 +27,8 @@ CI, and the game draws a procedural stand-in for any sprite that is missing.
 
 | Tool | Makes | Needs |
 | --- | --- | --- |
-| `tools/draw_characters.py` | Player and infected animation sheet, 3/4 view | Atelier |
+| `tools/convert_reference.py` | The player sheet, converted from a generated reference image | Atelier, numpy, Pillow |
+| `tools/draw_characters.py` | Infected animation sheet (and a fallback player), 3/4 view | Atelier |
 | `tools/draw_props.py` | Furniture, glass, neon signs and other props, 3/4 view | Atelier |
 | `tools/draw_weapons.py` | Pipe, pistol and shotgun: held/HUD side views and floor pickups | Atelier |
 | `tools/slice_sheets.py` | Floor textures, cut from the green-screen sheet in `assets/raw/` | Pillow |

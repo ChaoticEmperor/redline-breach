@@ -12,7 +12,8 @@ const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
 const ZOOM := 6.0 # on the 1920x1080 canvas
-const SHOULDER := Vector2(0, -13) # weapon arm pivot, relative to the feet
+var art: Dictionary # sheet layout and scale, see Fx.art()
+var shoulder := Vector2(0, -13) # weapon arm pivot, relative to the feet
 const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # held weapon sprite scale
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
@@ -65,15 +66,17 @@ func setup(p_main, p_world, p_controls) -> void:
 	shadow.texture = Fx.tex("shadow")
 	add_child(shadow)
 	body = AnimatedSprite2D.new()
+	art = Fx.art("player")
+	shoulder = Vector2(0, -art.shoulder * art.scale)
 	body.sprite_frames = Fx.frames("player")
-	body.scale = Vector2.ONE * Fx.ART_SCALE
-	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
+	body.scale = Vector2.ONE * art.scale
+	body.offset = Vector2(0, art.cell / 2.0 - art.feet) # the feet row sits on the node
 	body.modulate = world.actor_tint(1.0)
 	body.light_mask = 2 # actors keep their own colours; see World.actor_tint()
 	body.play("idle")
 	add_child(body)
 	arm = Node2D.new()
-	arm.position = SHOULDER
+	arm.position = shoulder
 	add_child(arm)
 	wep = Sprite2D.new()
 	wep.modulate = world.actor_tint(1.0)
@@ -92,7 +95,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	pool.texture_scale = 1.8
 	pool.color = Color("ffd6f2")
 	pool.energy = 1.0
-	pool.position = SHOULDER
+	pool.position = shoulder
 	add_child(pool)
 	muzzle_light = PointLight2D.new()
 	muzzle_light.texture = Fx.tex("light")
@@ -100,7 +103,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	muzzle_light.color = Color("ffc060")
 	muzzle_light.energy = 0.0
 	muzzle_light.range_item_cull_mask = 3 # a shot lights the actors as well as the room
-	muzzle_light.position = SHOULDER
+	muzzle_light.position = shoulder
 	add_child(muzzle_light)
 	cam = Camera2D.new()
 	add_child(cam)
@@ -135,7 +138,7 @@ func _process(delta: float) -> void:
 		return
 	body.flip_h = aim.x < 0.0
 	arm.rotation = aim.angle()
-	arm.position = SHOULDER - aim * recoil
+	arm.position = shoulder - aim * recoil
 	wep.flip_v = aim.x < 0.0
 	if swing_t > 0.0:
 		swing_t -= delta
@@ -198,7 +201,8 @@ func _physics_process(delta: float) -> void:
 		ghost_t -= delta
 		if ghost_t <= 0.0:
 			ghost_t = 0.03
-			fx.ghost(body.sprite_frames.get_frame_texture(body.animation, body.frame), global_position, body.flip_h)
+			fx.ghost(body.sprite_frames.get_frame_texture(body.animation, body.frame), global_position, body.flip_h,
+					art.cell * art.scale / 2.0, (art.feet - art.cell / 2.0) * art.scale)
 	else:
 		velocity = mv.limit_length(1.0) * SPEED
 	move_and_slide()
@@ -269,10 +273,10 @@ func _fire() -> void:
 		return
 	ammo[weapon] -= 1
 	var heavy := weapon == "shotgun"
-	var muzzle := global_position + SHOULDER + aim * 13.0
+	var muzzle := global_position + shoulder + aim * 13.0
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
-	fx.casing(global_position + SHOULDER, aim)
+	fx.casing(global_position + shoulder, aim)
 	fx.flash(muzzle)
 	muzzle_light.energy = 2.5
 	recoil = 5.0 if heavy else 3.0
@@ -306,15 +310,15 @@ func _bullet(muzzle: Vector2, dir: Vector2, reach: float, dmg: int) -> void:
 		if col.has_method("hit"):
 			col.hit(dmg, dir, 70.0, weapon != "pistol")
 		else:
-			fx.spark(end + SHOULDER)
+			fx.spark(end + shoulder)
 		break
-	fx.tracer(muzzle, end + SHOULDER)
+	fx.tracer(muzzle, end + shoulder)
 
 
 func _swing() -> void:
 	swing_t = 0.16
 	fx.play("swing")
-	fx.slash(global_position + SHOULDER, aim.angle())
+	fx.slash(global_position + shoulder, aim.angle())
 	var landed := false
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - global_position
