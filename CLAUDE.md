@@ -59,6 +59,7 @@ Sprite files hold **4 pixels per world pixel** and are drawn at 1/4 scale, so th
    and top-down views) from character grids in the script through the Atelier CLI
    (https://github.com/marmikshah/atelier, a headless pixel-art editor) into `assets/sprites/weapons/`. Use the
    same approach for other small, exact-size pixel art (icons, pickups, animation frames).
+   Use the project skill `atelier-pixel-art` (`.claude/skills/`) for the install, drawing rules and wiring steps.
 3. **Procedural** — generated in `fx.gd`. Every texture must keep this fallback so the game and CI work with any
    subset of sprite files (CI runs neither tool).
 
