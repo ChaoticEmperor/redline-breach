@@ -118,6 +118,12 @@ func _run() -> void:
 	var w = main.world
 	ok(p != null and p.alive, "player spawned")
 	ok(w.enemy_list.size() >= 15, "zombies spawned (%d)" % w.enemy_list.size())
+	# Look: the figure is about 12% of the screen height and self-lit art cancels the ambient.
+	var figure: float = 52.0 * p.Fx.ART_SCALE * p.ZOOM / 1080.0
+	ok(figure > 0.10 and figure < 0.14, "player figure is %.1f%% of the screen height (10-14%%)" % (figure * 100.0))
+	var lit: Color = w._unlit * w.AMBIENT
+	ok(absf(lit.r - 1.0) < 0.01 and absf(lit.g - 1.0) < 0.01 and absf(lit.b - 1.0) < 0.01 and w.AMBIENT.get_luminance() < 0.35,
+		"ambient stays dim and the unlit modulate cancels it")
 	ok(w.doors.size() >= 12 and w.glass.size() > 0, "doors (%d) and glass (%d) built" % [w.doors.size(), w.glass.size()])
 
 	var p0: Vector2 = p.global_position

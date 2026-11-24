@@ -12,7 +12,7 @@ enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
 
 const SIGHT := 150.0
 const BLAST := 44.0
-const LURK := Color(2.0, 2.0, 2.0) # over-bright so shapes still read in the dark
+const LURK := Color(1.2, 1.2, 1.2) # slightly over-bright so shapes read in dim rooms
 const STATS := {
 	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100, "size": 1.0},
 	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150, "size": 0.95},

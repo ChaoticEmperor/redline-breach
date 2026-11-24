@@ -15,11 +15,13 @@ const L_GLASS := 4
 const L_PLAYER := 8
 const L_ENEMY := 16
 const SOLID := L_WALL | L_DOOR | L_GLASS
-const AMBIENT := Color("1a1528")
+const AMBIENT := Color("3e2654")
 const B := 3 # baked floor texture pixels per world pixel
 const PROP_SCALE := 0.5 # props sheet pixels -> world pixels (32 per cell)
 const CAP := 8.0 # how far a wall's top edge rises over the floor behind it
-const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("d300c5"), Color("f9f002")]
+const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("ff2a80"), Color("ff2a9d")]
+const DANCE_ALPHA := 0.42 # strength of the additive tile pulse
+const LIGHT_SPREAD := 3.2 # room light radius (Fx.LIGHTS, px) -> light texture scale, over 64
 # zone index -> floor sprite in assets/sprites/floors/
 const ZONE_FLOOR := ["concrete", "dancefloor", "vip_carpet", "kitchen_tile", "bar_planks",
 	"restroom_tile", "concrete", "corridor_carpet", "elevator_steel"]
@@ -158,14 +160,14 @@ func build(layout: Dictionary) -> void:
 		for c in L.exits:
 			exit_rect = exit_rect.merge(Rect2(Vector2(c) * T, Vector2(T, T)))
 
-	# Mood: near-black ambient, coloured point lights per room.
+	# Mood: dim violet ambient, coloured point lights per room.
 	var dark := CanvasModulate.new()
 	dark.color = AMBIENT
 	add_child(dark)
 	for s in Layout.COLS * Layout.ROWS:
 		var origin := _chunk_origin(s)
 		for l in Fx.LIGHTS[_chunk_zone(s)]:
-			_add_light(origin + Vector2(l[0] * Layout.CW, l[1] * Layout.CH) * T, Color(l[2]), l[4], l[3] * 2.4 / 64.0)
+			_add_light(origin + Vector2(l[0] * Layout.CW, l[1] * Layout.CH) * T, Color(l[2]), l[4], l[3] * LIGHT_SPREAD / 64.0)
 
 	# Neon, signs, dancefloor glow and FX sit on their own canvas so the
 	# ambient darkness does not dim them.
@@ -671,6 +673,6 @@ func _draw_overlay() -> void:
 		var k: int = hash(Vector3i(c.x / 2, c.y / 2, _beat / 2)) % 7
 		if k < 4:
 			var col: Color = DANCE_COLORS[k]
-			_overlay.draw_rect(Rect2(c.x * T + 1, c.y * T + 1, T - 1, T - 1), Color(col, 0.28))
+			_overlay.draw_rect(Rect2(c.x * T + 1, c.y * T + 1, T - 1, T - 1), Color(col, DANCE_ALPHA))
 	if exit_open:
 		_overlay.draw_rect(exit_rect, Color(0.2, 1.0, 0.45, 0.3 if _beat % 2 == 0 else 0.55))

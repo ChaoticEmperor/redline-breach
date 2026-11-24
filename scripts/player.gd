@@ -11,7 +11,7 @@ const DASH_SPEED := 340.0
 const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
-const ZOOM := 3.6 # on the 1920x1080 canvas
+const ZOOM := 6.0 # on the 1920x1080 canvas
 const SHOULDER := Vector2(0, -12) # weapon arm pivot, relative to the feet
 const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # held weapon sprite scale
 const WEAPONS := {
@@ -86,6 +86,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	var pool := PointLight2D.new()
 	pool.texture = Fx.tex("light")
 	pool.texture_scale = 1.8
+	pool.color = Color("ffd6f2")
 	pool.energy = 1.0
 	pool.position = SHOULDER
 	add_child(pool)
