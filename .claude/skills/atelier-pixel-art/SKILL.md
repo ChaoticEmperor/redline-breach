@@ -55,9 +55,13 @@ Do not run `atelier connect`. The scripts find the binary on PATH or in `~/.loca
 
 ## 4. Craft order (adapted from Atelier's own sprite, scene and review guides)
 
-Atelier ships three guides: read them with `atelier skills show sprite`, `show scene` and `show review`. They
-are written for drawing layer by layer inside Atelier; our sheets are drawn by code, so these are the parts
-that carry over, in the order to apply them. Each level invalidates the ones below it.
+Atelier's own three guides are installed next to this skill as `atelier-sprite`, `atelier-scene` and
+`atelier-review` (copied verbatim by `atelier skills install --dir .claude/skills`; re-run that to update them,
+never edit them by hand; Atelier is MIT licensed). They are written for drawing layer by layer inside Atelier.
+**For anything that ships in this game, this skill wins**: our sheets are drawn by code through `tools/draw_*.py`,
+with the scale, layout and wiring rules above. Use the bundled guides for technique, and for one-off art drawn
+directly in Atelier. These are the parts that carry over to our scripts, in the order to apply them. Each level
+invalidates the ones below it.
 
 1. **Silhouette.** Before any detail, check that the figure or prop reads as itself in flat black (the preview
    snippet below has a `--silhouette` variant). If it does not, change the pose or proportions in `figure()` or

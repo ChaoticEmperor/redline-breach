@@ -58,7 +58,8 @@ Things to know:
   environment's setup script to have it every time.
 
 Claude Code sessions in this repo have a project skill, `.claude/skills/atelier-pixel-art/`, with the drawing
-rules (scale, facing, palette), the preview loop and how to wire a new sprite into the game.
+rules (scale, view, layout), the craft order, the preview loop and how to wire new art into the game. Atelier's
+own three guides (`atelier-sprite`, `atelier-scene`, `atelier-review`) are vendored beside it.
 
 ## Licences
 
