@@ -53,7 +53,58 @@ Do not run `atelier connect`. The scripts find the binary on PATH or in `~/.loca
 - **Layout is a contract.** Character rows and frame ranges must match `ANIMS` in `scripts/fx.gd`. Adding a prop
   means adding it to `PROPS` in `draw_props.py`; the script regenerates `scripts/prop_atlas.gd`.
 
-## 4. Draw, look, repeat
+## 4. Craft order (adapted from Atelier's own sprite, scene and review guides)
+
+Atelier ships three guides: read them with `atelier skills show sprite`, `show scene` and `show review`. They
+are written for drawing layer by layer inside Atelier; our sheets are drawn by code, so these are the parts
+that carry over, in the order to apply them. Each level invalidates the ones below it.
+
+1. **Silhouette.** Before any detail, check that the figure or prop reads as itself in flat black (the preview
+   snippet below has a `--silhouette` variant). If it does not, change the pose or proportions in `figure()` or
+   the prop's big forms. Detail on a shape that does not read is wasted.
+2. **Value.** Squint, or view it in greyscale. The focal area (a character's head and chest, the face of a
+   prop the player looks at) must hold the strongest light-dark contrast. Two neighbouring masses in the same
+   value merge into one.
+3. **One light.** Everything is lit from the upper left (`LIGHT` in `tools/_atelier.py`). A highlight on the
+   wrong side, or a lamp that lights nothing, is the loudest sign of assembled art. If you draw a light source,
+   something must be lit by it.
+4. **Colour.** Stay on the ramps from `ramp()`. Do not invent in-between colours; mix two ramp steps with the
+   built-in dithering instead.
+5. **Detail, only where it earns attention.** Detail everywhere is detail nowhere. Put it on the focal area
+   and leave the rest in clean forms.
+
+Rules that apply at every level:
+
+- **Texture follows form.** Random speckle is noise, not texture. `Canvas.speckle()` is for wear on a surface
+  (rust on a drum, stains on cloth), at a few percent; cloth folds, wood grain and brushed metal are drawn as
+  lines that follow the shape.
+- **Name the problem before changing anything.** Look at the render and say in words what is wrong and where.
+  If you cannot name it, you are guessing.
+- **Fix the part, never the sheet.** One problem per pass: change the one function, pose argument or detail
+  call responsible, regenerate, look again. Rewriting a character to fix its hands throws away what was right,
+  and two fixes at once hide which one worked.
+- **Carry motion in shape, not opacity.** A pulse or impact is drawn as bigger or brighter pixels; soft alpha
+  fades die at this size.
+- **Keep a pose inside its cell.** `python3 tools/asset_slicer_diff.py audit` flags poses that touch a cell
+  edge (a clipped corpse or lunge) and stray pixels in unused cells.
+
+### Reviewing art (when asked to judge, not to fix)
+
+Look first, measure second, report third. Report the most severe finding first, ranked silhouette, then value,
+then light, then colour, then detail: a colour note on a figure whose silhouette fails is noise. Every finding
+has three parts:
+
+```
+<what is wrong>  -  <where: sheet, row/frame or prop name, and the region>
+fix: <the one localised change, naming the function or pose argument>
+```
+
+"Redraw it" is not a finding unless the silhouette itself is wrong; then say exactly that. Separate what the
+art was asked to be from what you would prefer, and say so when it is fine: an empty report is a real result.
+For screen-level judgement (brightness, contrast, colour balance, character size against the concept art) use
+`tools/run_polisher.sh`, described in `CLAUDE.md`.
+
+## 5. Draw, look, repeat
 
 ```sh
 python3 tools/draw_characters.py   # or draw_props.py / draw_weapons.py
@@ -73,6 +124,19 @@ bg.save("/tmp/preview.png")
 PY
 ```
 
+For the silhouette check, fill every opaque pixel with black before enlarging:
+
+```sh
+python3 - <<'PY'
+from PIL import Image
+im = Image.open("assets/sprites/chars/sheet_characters_v2.png").convert("RGBA")
+black = Image.new("RGBA", im.size, (0, 0, 0, 255))
+out = Image.new("RGBA", im.size, (230, 230, 230, 255))
+out.paste(black, (0, 0), im.getchannel("A").point(lambda v: 255 if v > 127 else 0))
+out.resize((im.width * 2, im.height * 2), Image.NEAREST).save("/tmp/silhouette.png")
+PY
+```
+
 Check it at game size too, not only enlarged. Expect two or three rounds.
 
 For work the grid approach does not cover (animation frames, effects, fonts), list the tools with
@@ -80,7 +144,7 @@ For work the grid approach does not cover (animation frames, effects, fonts), li
 `atelier call TOOL '<json>'`; the reply is one JSON object after any log lines. Useful ones: `doc_new`,
 `doc_paint_grid`, `doc_frame`, `doc_look`, `doc_contact_sheet`, `doc_export` (`op`: `sheet`, `anim`, `font`).
 
-## 5. Wire it into the game
+## 6. Wire it into the game
 
 - **New prop:** choose where it appears in `_prop_for()` in `scripts/world.gd` (by room type and the shape of
   the furniture piece). Single-cell props are repeated across a piece; a larger prop is used when its footprint
@@ -92,7 +156,7 @@ For work the grid approach does not cover (animation frames, effects, fonts), li
   CI does not run these tools and the game must work with any sprite missing.
 - Run `godot --headless --import` and commit new `.png` files together with their `.png.import` files.
 
-## 6. Finish
+## 7. Finish
 
 Follow the git workflow and run the checks in `CLAUDE.md`. Then export the web build, open it in a browser and
 confirm the sprite shows where intended. A sprite that exists but is hidden by other art (for example a held
