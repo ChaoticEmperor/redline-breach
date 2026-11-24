@@ -65,7 +65,8 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 Atelier's own three guides are installed next to this skill as `atelier-sprite`, `atelier-scene` and
 `atelier-review` (copied verbatim by `atelier skills install --dir .claude/skills`; re-run that to update them,
 never edit them by hand; Atelier is MIT licensed). They are written for drawing layer by layer inside Atelier.
-**For anything that ships in this game, this skill wins**: our sheets are drawn by code through `tools/draw_*.py`,
+General pixel-art craft (lines and jaggies, outlines, shading pitfalls, ramps, tiling, animation, export) is in
+the `pixel-art-engineer` skill. **For anything that ships in this game, this skill wins**: our sheets are drawn by code through `tools/draw_*.py`,
 with the scale, layout and wiring rules above. Use the bundled guides for technique, and for one-off art drawn
 directly in Atelier. These are the parts that carry over to our scripts, in the order to apply them. Each level
 invalidates the ones below it.
