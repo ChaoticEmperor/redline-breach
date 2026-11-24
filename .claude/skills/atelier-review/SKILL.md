@@ -84,3 +84,14 @@ Then you are no longer reviewing. Fix **one finding at a time**, `doc_look`
 after each, and confine every change to the region and layer you named —
 `doc_checkpoint action=save` first. Re-run the audit that produced the finding to
 prove it is gone; a fix you did not verify is a claim, not a fix.
+
+## In this repository (REDLINE // 1989)
+
+This guide is Atelier's own and is generic. In this repository:
+
+- Load the `pixel-art-engineer` skill first: it holds the craft rules all pixel art here is judged against.
+- Then follow `atelier-pixel-art`: art that ships in the game is drawn by the scripts in `tools/`, at the
+  scale and sheet layout the game expects. Its project rules take precedence over this guide.
+- Use this guide for technique, and for one-off art drawn directly in Atelier.
+
+(This section is added by `tools/refresh_atelier_skills.sh`.)

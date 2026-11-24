@@ -1,14 +1,12 @@
 ---
 name: pixel-art-engineer
 description: >
-  End-to-end artistic and game-engineering skill for designing, constructing,
-  animating, auditing, tiling, and exporting pixel art sprites, tilesets,
-  backgrounds, VFX, palettes, and engine-ready assets. Synthesizes *Les Forges
-  Pixel Art Course*, the *Isometric Pixel Art Guide*, *Pixel Logic* (Michael Azzi),
-  *Make Your Own Pixel Art* (Jennifer Dawe & Matthew Humphries), and *Pixel Art
-  for Game Developers* (Daniel Silber). Use when drawing, redrawing, animating,
-  reviewing or exporting any pixel art, to apply general pixel-art craft; for
-  how art is built and wired in this repo, use atelier-pixel-art.
+  Pixel-art craft rules for designing, constructing, animating, auditing, tiling,
+  and exporting sprites, tilesets, backgrounds, VFX, palettes, and engine-ready
+  assets: silhouettes, clean lines and outlines, shading and material texture,
+  colour ramps, dithering, animation and export. Load this FIRST whenever
+  creating, redrawing, animating, reviewing or exporting any pixel art in this
+  project, then follow atelier-pixel-art for how art is built and wired in this repo.
 ---
 
 # Pixel Art Engineer
