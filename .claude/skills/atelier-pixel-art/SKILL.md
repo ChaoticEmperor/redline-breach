@@ -52,7 +52,82 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 `ramp()` for dark-to-light colour ramps, and `paint()` which sends a canvas through Atelier. Output goes to
 `assets/sprites/`. Never hand-edit files there. Every script exits 0 when Atelier is missing.
 
-## 3. Drawing rules
+## 3. The Atelier toolbox: what to reach for
+
+Atelier has 27 tools. Until the player pilot we used three (`doc_new`, `doc_paint_grid`, `doc_export`) and
+bypassed everything that makes it an art tool. Use this table to pick the tool; `atelier tools --schema NAME`
+gives the arguments. Every call is `atelier call TOOL --stdin` with the JSON on stdin (or as one quoted
+argument); the reply is one JSON object after any log lines. Set `ATELIER_HOME` to a folder you keep, so the
+document, its checkpoints and its recipe survive between calls.
+
+| When you need to | Tool | Notes |
+| --- | --- | --- |
+| start a sprite | `doc_new` | returns `doc_id`; pass it to every later call |
+| fix the colours before drawing | `doc_palette op=set` | locks the palette; `op=generate` builds ramps, `op=snap` forces pixels onto it, `op=swap` recolours, `op=report` counts usage |
+| split the subject into parts | `doc_layer` | ops: `add`, `rename`, `set`, `move`, `insert`, `delete`, `duplicate`, `merge_down` (there is no `edit`) |
+| place authored pixels | `doc_paint_grid` | rows of characters plus a legend; send only the rows that hold pixels and position with `x`/`y` |
+| draw a shape | `doc_draw` | ops: `pencil`, `line`, `rect`, `ellipse`, `polyline`, `polygon`, `stroke`, `curve`, `stamp`, `fill`, `gradient`, `scatter`, `noise`, `text`, `fill_cel`, `clear_cel`; `erase: true` cuts pixels out. No `noise` or `scatter` on character sprites |
+| apply an effect or transform | `doc_fx` | ops: `outline`, `symmetry`, `pixel_perfect`, `shade`, `form`, `bevel`, `dither`, `quantize`, `replace_color`, `adjust`, `gradient_map`, `flip`, `shift`, `rotate`, `scale`, `blur`, `drop_shadow` |
+| blend two ramp steps | `doc_dither_ramp` | for backgrounds and large surfaces, not small animated sprites |
+| clear or move a patch | `doc_region` | `op=clear` with `rect=[x, y, w, h]`; the way to do a region fix |
+| read exact pixels before a fix | `doc_dump_region` | returns the grid and its legend; diagnose with this, then edit |
+| see the frame | `doc_look` | `out_path` writes a PNG; `bg=checker|dark|white`; `mode=notan|value` for the squint test; `onion` for neighbours |
+| check the silhouette | `doc_silhouette` | bounding box, fill ratio and a black grid |
+| find specks and separate islands | `doc_components` | `specks_total` must be 0 on a character |
+| audit craft | `doc_critique` | orphans, palette adherence, contrast, light direction, pillow shading, value masses, jaggies |
+| work from a reference image | `doc_ref` | `op=set` attaches it, `op=analyze` gives its palette and silhouette plan, `op=compare` scores a frame (silhouette IoU, colour delta), `op=diff` lists the worst pixels |
+| animate | `doc_frame`, `doc_add_tag` | `doc_frame op=add copy_from=N`; tag a loop so the audit and the export know it |
+| check an animation | `doc_contact_sheet`, `doc_frame_diff`, `doc_anim_audit` | audit modes: `seam`, `spacing`, `arc`, `timing` |
+| save before a risky step, undo | `doc_checkpoint` | `action=save|list|restore|prune`; restore takes the `checkpoint_id` from `list` |
+| change resolution | `doc_rescale` | whole-number `factor`; `op=down` needs both sides to divide evenly; adds no colours |
+| check a floor tile repeats | `doc_seam_report`, `doc_look tile=N` | for the floor textures |
+| make a pixel font | `doc_font`, `doc_export op=font` | exports a TrueType font; a candidate for the HUD |
+| export | `doc_export` | `op=sheet` (PNG, pass `scale: 1`), `op=anim` (GIF/APNG), `op=font` |
+| housekeeping | `doc_info`, `list_docs`, `delete_doc` | `doc_info` shows layers, frames, tags and palette size |
+| rebuild or inspect a drawing | `atelier replay <recipe|id> [--show]` | every document journals its calls as a recipe |
+
+### Gates: do not move on until these pass
+
+Run them per frame, after each stage (silhouette, colour, shading, animation), and look at a `doc_look` render
+each time. A sprite is not finished because the numbers pass, and it is not finished while they fail.
+
+| Check | Tool | Pass |
+| --- | --- | --- |
+| stray pixels | `doc_critique` orphans, `doc_components` specks | 0 |
+| palette | `doc_critique` palette adherence, `doc_info` | 0% off-palette; 16 colours or fewer per character |
+| structure | `doc_info` | parts on separate layers, loop tagged |
+| reads at all | `doc_silhouette`, `doc_look mode=notan` | recognisable in flat black |
+| matches the reference | `doc_ref op=compare` | silhouette IoU 0.80 or more, colour delta 0.06 or less |
+| shading | `doc_critique` | no pillow shading, one light direction, contrast ok |
+| loop | `doc_anim_audit mode=seam` and `timing` | wrap about as large as a normal step; hold key poses longer |
+
+`jaggies` is information, not a gate: small curves always keep some step corners, so judge them by eye.
+
+### Working from a reference image (the method that produced the best art so far)
+
+When there is a generated or hand-made reference in the target style, convert it; do not redraw it.
+
+1. **Measure its pixel grid.** Sum the absolute luminance differences along x and along y to get two edge
+   profiles, then find the pitch (try 4.0 to 12.0 in steps of 0.25) whose sample points land on the most edge
+   energy. The Gemini player sheet was 5.75 screen pixels per art pixel.
+2. **Recover the native pixels.** For each pose, find the grid phase the same way and take the median colour of
+   the middle of each cell. Drop the backdrop and any ground shadow, keep dark outline cells that touch
+   colour, close one-pixel gaps in the outline and fill what is sealed inside it.
+3. **Lock the palette from the reference:** one ink colour for all near-black outline pixels plus about 15
+   colours quantised from the rest. `doc_palette op=set`.
+4. **Build it in one document:** a layer per part, one frame per pose, `doc_paint_grid` per layer and frame,
+   `doc_add_tag` for each loop, `doc_checkpoint action=save`.
+5. **Attach an aligned reference per frame.** `doc_ref op=compare` stretches the reference over the canvas, so
+   cut the same window out of the source that the canvas covers (canvas size times the pitch, same offset). A
+   loosely cropped pose scores about 0.3 even when the sprite is right.
+6. **Run the gates, fix by region.** `doc_dump_region` the failing area, then `doc_region op=clear` and
+   `doc_paint_grid` exactly there. Typical damage: a far foot or hand that fades into the shadow.
+7. **Export at native size.** Halving a detailed 78px figure with `doc_rescale` destroys the face; pick the
+   in-game scale to suit the art, not the other way round.
+
+A reference only converts well if it has a regular pixel grid, a flat backdrop and one pose per clear gap.
+
+## 4. Drawing rules
 
 - **View:** 3/4 oblique. Characters show face, body and legs and face right (the game flips them). A prop shows
   its top face and, below it, its front face.
@@ -69,7 +144,7 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 - **Layout is a contract.** Character rows and frame ranges must match `ANIMS` in `scripts/fx.gd`. Adding a prop
   means adding it to `PROPS` in `draw_props.py`; the script regenerates `scripts/prop_atlas.gd`.
 
-## 4. Craft order (adapted from Atelier's own sprite, scene and review guides)
+## 5. Craft order (adapted from Atelier's own sprite, scene and review guides)
 
 Atelier's own three guides are installed next to this skill as `atelier-sprite`, `atelier-scene` and
 `atelier-review` (copied verbatim by `atelier skills install --dir .claude/skills`; re-run that to update them,
@@ -135,7 +210,7 @@ art was asked to be from what you would prefer, and say so when it is fine: an e
 For screen-level judgement (brightness, contrast, colour balance, character size against the concept art) use
 `tools/run_polisher.sh`, described in `CLAUDE.md`.
 
-## 5. Draw, look, repeat
+## 6. Draw, look, repeat
 
 ```sh
 python3 tools/draw_characters.py   # or draw_props.py / draw_weapons.py
@@ -170,12 +245,9 @@ PY
 
 Check it at game size too, not only enlarged. Expect two or three rounds.
 
-For work the grid approach does not cover (animation frames, effects, fonts), list the tools with
-`atelier tools --markdown` and read one with `atelier tools --schema NAME`. Calls are
-`atelier call TOOL '<json>'`; the reply is one JSON object after any log lines. Useful ones: `doc_new`,
-`doc_paint_grid`, `doc_frame`, `doc_look`, `doc_contact_sheet`, `doc_export` (`op`: `sheet`, `anim`, `font`).
+The tools for looking, checking and fixing are in section 3; `atelier tools --markdown` lists them all.
 
-## 6. Wire it into the game
+## 7. Wire it into the game
 
 - **New prop:** choose where it appears in `_prop_for()` in `scripts/world.gd` (by room type and the shape of
   the furniture piece). Single-cell props are repeated across a piece; a larger prop is used when its footprint
@@ -187,7 +259,7 @@ For work the grid approach does not cover (animation frames, effects, fonts), li
   CI does not run these tools and the game must work with any sprite missing.
 - Run `godot --headless --import` and commit new `.png` files together with their `.png.import` files.
 
-## 7. Finish
+## 8. Finish
 
 Follow the git workflow and run the checks in `CLAUDE.md`. Then export the web build, open it in a browser and
 confirm the sprite shows where intended. A sprite that exists but is hidden by other art (for example a held
