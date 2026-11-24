@@ -94,7 +94,8 @@ each time. A sprite is not finished because the numbers pass, and it is not fini
 | Check | Tool | Pass |
 | --- | --- | --- |
 | stray pixels | `doc_critique` orphans, `doc_components` specks | 0 |
-| palette | `doc_critique` palette adherence, `doc_info` | 0% off-palette; 16 colours or fewer per character |
+| palette | `doc_critique` palette adherence, `doc_info` | 0% off-palette; palette locked, sized by the definition test below |
+| definition | compare the face at the same scale as the reference | eye highlights, iris, brow and the shading steps on the face all present |
 | structure | `doc_info` | parts on separate layers, loop tagged |
 | reads at all | `doc_silhouette`, `doc_look mode=notan` | recognisable in flat black |
 | matches the reference | `doc_ref op=compare` | silhouette IoU 0.80 or more, colour delta 0.06 or less |
@@ -113,8 +114,14 @@ When there is a generated or hand-made reference in the target style, convert it
 2. **Recover the native pixels.** For each pose, find the grid phase the same way and take the median colour of
    the middle of each cell. Drop the backdrop and any ground shadow, keep dark outline cells that touch
    colour, close one-pixel gaps in the outline and fill what is sealed inside it.
-3. **Lock the palette from the reference:** one ink colour for all near-black outline pixels plus about 15
-   colours quantised from the rest. `doc_palette op=set`.
+3. **Lock the palette from the reference, sized to keep its definition.** One ink colour for all near-black
+   outline pixels, N colours quantised from the rest, plus a few accent slots for colours that are rare but far
+   from everything else (eye whites, an iris, a mouth); plain quantising drops those first. Choose N by test:
+   for each candidate size, measure the mean distance from the reference's pixels to their nearest palette
+   colour, over the whole figure and over the face alone, and take the smallest size where no face pixel is
+   badly off. The Gemini player needed 42 (39 + accents); at 16 the eyes, brow and face shading were lost and
+   the sprite read as "too pixelated" although every pixel was in the right place. A generic "8-16 colours"
+   cap suits art drawn for it, not art converted from a painted reference. `doc_palette op=set`.
 4. **Build it in one document:** a layer per part, one frame per pose, `doc_paint_grid` per layer and frame,
    `doc_add_tag` for each loop, `doc_checkpoint action=save`.
 5. **Attach an aligned reference per frame.** `doc_ref op=compare` stretches the reference over the canvas, so
@@ -122,7 +129,11 @@ When there is a generated or hand-made reference in the target style, convert it
    loosely cropped pose scores about 0.3 even when the sprite is right.
 6. **Run the gates, fix by region.** `doc_dump_region` the failing area, then `doc_region op=clear` and
    `doc_paint_grid` exactly there. Typical damage: a far foot or hand that fades into the shadow.
-7. **Export at native size.** Halving a detailed 78px figure with `doc_rescale` destroys the face; pick the
+7. **Check definition against the reference at the same scale** (upscale the sprite by the pitch and put it
+   beside the source, face enlarged) before judging it. If it looks coarser than the reference, the cause is
+   the palette or the display size, not the grid, as long as the reference's cells are flat inside (measure
+   the colour spread within cells; under about 5 means the grid is right).
+8. **Export at native size.** Halving a detailed 78px figure with `doc_rescale` destroys the face; pick the
    in-game scale to suit the art, not the other way round.
 
 A reference only converts well if it has a regular pixel grid, a flat backdrop and one pose per clear gap.
