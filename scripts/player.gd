@@ -104,7 +104,17 @@ func _process(delta: float) -> void:
 	var look := aim * 26.0 if alive else Vector2.ZERO
 	var jitter: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * fx.shake
 	cam.offset = cam.offset.lerp(look, minf(1.0, delta * 6.0)) + jitter
-	cam.zoom = Vector2.ONE * ZOOM * (1.0 + fx.punch)
+	# Zoom follows the short screen side so portrait and landscape show the
+	# same amount of room; if the view is larger than the floor, centre it.
+	var screen := get_viewport().get_visible_rect().size
+	var zoom := ZOOM * minf(screen.x, screen.y) / 1080.0
+	cam.zoom = Vector2.ONE * zoom * (1.0 + fx.punch)
+	var floor_size := Vector2(world.L.w, world.L.h) * World.T
+	var spare := ((screen / zoom - floor_size) / 2.0).max(Vector2.ZERO)
+	cam.limit_left = -int(spare.x)
+	cam.limit_top = -int(spare.y)
+	cam.limit_right = int(floor_size.x + spare.x)
+	cam.limit_bottom = int(floor_size.y + spare.y)
 	muzzle_light.energy = maxf(0.0, muzzle_light.energy - delta * 40.0)
 	var swing := 0.0
 	if swing_t > 0.0:
@@ -140,8 +150,14 @@ func _physics_process(delta: float) -> void:
 	var av: Vector2 = controls.aim
 	if av.length() > 0.2:
 		aim = av.normalized()
-	elif controls.touch_mode and mv.length() > 0.3:
-		aim = mv.normalized()
+	elif controls.touch_mode:
+		# No aim stick on touch: face the nearest threat while attacking,
+		# otherwise face where we are walking.
+		var target = _nearest(190.0 if weapon != "pipe" else 44.0) if controls.fire else null
+		if target != null:
+			aim = (target.global_position - global_position).normalized()
+		elif mv.length() > 0.3:
+			aim = mv.normalized()
 	vis.rotation = aim.angle()
 
 	if controls.take("dash") and dash_cd <= 0.0:
@@ -280,6 +296,18 @@ func _swing() -> void:
 
 # ---------------------------------------------------------------- kick / exec
 
+## Closest standing zombie in sight within `reach`, or null.
+func _nearest(reach: float):
+	var best = null
+	var best_d := reach
+	for e in world.enemy_list:
+		var d: float = e.global_position.distance_to(global_position)
+		if d < best_d and not e.is_down() and world.los(global_position, e.global_position):
+			best = e
+			best_d = d
+	return best
+
+
 func _exec_target():
 	var best = null
 	var best_d := 24.0
@@ -307,6 +335,10 @@ func _action() -> void:
 		target.execute((target.global_position - global_position).normalized())
 		return
 	fx.play("kick")
+	if controls.touch_mode and controls.aim == Vector2.ZERO:
+		var close = _nearest(26.0)
+		if close != null:
+			aim = (close.global_position - global_position).normalized()
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - global_position
 		if d.length() < 26.0 and absf(aim.angle_to(d)) < 1.0:
