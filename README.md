@@ -27,9 +27,10 @@ CI, and the game draws a procedural stand-in for any sprite that is missing.
 
 | Tool | Makes | Needs |
 | --- | --- | --- |
-| `tools/slice_sheets.py` | Characters, props and floors, cut from the green-screen sheets in `assets/raw/` | Pillow |
-| `tools/import_cc0.py` | Fallback characters from Kenney's CC0 Topdown Shooter pack | Pillow, network |
-| `tools/draw_weapons.py` | Pipe, pistol and shotgun: HUD side views and top-down views | Atelier |
+| `tools/draw_characters.py` | Player and infected animation sheet, 3/4 view | Atelier |
+| `tools/draw_props.py` | Furniture, glass, neon signs and other props, 3/4 view | Atelier |
+| `tools/draw_weapons.py` | Pipe, pistol and shotgun: held/HUD side views and floor pickups | Atelier |
+| `tools/slice_sheets.py` | Floor textures, cut from the green-screen sheet in `assets/raw/` | Pillow |
 
 ### Atelier
 
@@ -37,15 +38,15 @@ CI, and the game draws a procedural stand-in for any sprite that is missing.
 command line. We use it for small, exact-size art where a generated sheet is the wrong tool: weapons, icons,
 pickups, and later animation frames.
 
-Each drawing is a character grid in the script (one character per pixel, colours in `LEGEND`), so art changes
-show up in a diff and can be regenerated:
+Characters and props are drawn by code (posed, lit forms with detail passes) and weapons as character grids, so
+art changes show up in a diff and can be regenerated:
 
 ```sh
 # install once; these options leave your shell profile and agent config alone
 curl -fsSL -o /tmp/atelier-install.sh https://github.com/marmikshah/atelier/releases/latest/download/install.sh
 ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh
 
-python3 tools/draw_weapons.py    # writes assets/sprites/weapons/*.png
+python3 tools/draw_characters.py && python3 tools/draw_props.py && python3 tools/draw_weapons.py
 godot --headless --import        # then commit the PNGs and their .png.import files
 ```
 
@@ -55,8 +56,6 @@ Things to know:
   and only writes the files the script exports.
 - It installs to `~/.local/bin`. Cloud sessions start without it; add the two install lines to the
   environment's setup script to have it every time.
-- The top-down weapon sprites are used for floor pickups. In the hand they only appear when the body sprite
-  has no weapon of its own; the current player sprites have the weapon painted in.
 
 Claude Code sessions in this repo have a project skill, `.claude/skills/atelier-pixel-art/`, with the drawing
 rules (scale, facing, palette), the preview loop and how to wire a new sprite into the game.

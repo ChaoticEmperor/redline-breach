@@ -23,7 +23,8 @@ var fire := false
 var touch_mode := false
 var override := false
 var player
-var q := {"kick": false, "dash": false, "swap": false, "any": false, "restart": false}
+const BUFFER_MS := 100 # a press stays usable this long, so fast taps are never dropped
+var q := {"kick": 0, "dash": 0, "swap": 0, "any": 0, "restart": 0} # time of the last press, 0 = none
 var u := 3.0
 var W := 640.0
 var H := 360.0
@@ -63,17 +64,22 @@ func _measure() -> void:
 	H = size.y / u
 
 
-## Returns true once per queued press.
+func press(n: String) -> void:
+	q[n] = Time.get_ticks_msec()
+
+
+## Returns true once per press, if it happened within the buffer window.
 func take(n: String) -> bool:
-	if q[n]:
-		q[n] = false
-		return true
-	return false
+	var at: int = q[n]
+	if at == 0:
+		return false
+	q[n] = 0
+	return Time.get_ticks_msec() - at <= BUFFER_MS
 
 
 func clear() -> void:
 	for k in q:
-		q[k] = false
+		q[k] = 0
 
 
 func _input(event: InputEvent) -> void:
@@ -84,16 +90,16 @@ func _input(event: InputEvent) -> void:
 		var p: Vector2 = event.position / u
 		var at := layout(W, H)
 		if event.pressed:
-			q.any = true
+			press("any")
 			if p.distance_to(at.fire) < FIRE_R + 6.0 and _f_id == -1:
 				_f_id = event.index
 				_f_vec = Vector2.ZERO
 			elif p.distance_to(at.kick) < BTN_R + 6.0:
-				q.kick = true
+				press("kick")
 			elif p.distance_to(at.dash) < BTN_R + 6.0:
-				q.dash = true
+				press("dash")
 			elif SWAP_ZONE.has_point(p):
-				q.swap = true
+				press("swap")
 			elif p.x < W / 2.0 and _l_id == -1:
 				_l_id = event.index
 				_l_origin = p
@@ -113,18 +119,18 @@ func _input(event: InputEvent) -> void:
 			_f_vec = ((p - layout(W, H).fire) / FIRE_R).limit_length(1.0)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		touch_mode = false
-		q.any = true
+		press("any")
 		match event.physical_keycode:
-			KEY_SPACE, KEY_SHIFT: q.dash = true
-			KEY_E, KEY_F: q.kick = true
-			KEY_Q: q.swap = true
-			KEY_R: q.restart = true
+			KEY_SPACE, KEY_SHIFT: press("dash")
+			KEY_E, KEY_F: press("kick")
+			KEY_Q: press("swap")
+			KEY_R: press("restart")
 	elif event is InputEventMouseButton and event.pressed:
 		touch_mode = false
 		match event.button_index:
-			MOUSE_BUTTON_LEFT: q.any = true
-			MOUSE_BUTTON_RIGHT: q.kick = true
-			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN: q.swap = true
+			MOUSE_BUTTON_LEFT: press("any")
+			MOUSE_BUTTON_RIGHT: press("kick")
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN: press("swap")
 
 
 func _process(_delta: float) -> void:

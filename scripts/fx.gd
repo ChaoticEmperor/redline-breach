@@ -7,6 +7,18 @@ const RATE := 22050
 const MAX_DECALS := 320 # per room
 const SPRITE_DIR := "res://assets/sprites/"
 const SPRITE_PX := 4.0
+const PropAtlas = preload("res://scripts/prop_atlas.gd")
+const CELL := 64          # one pose in the character sheet
+const ART_SCALE := 0.4    # character sheet pixels -> world pixels
+# who -> [sheet row, {animation: [first frame, frames, fps, loops]}]
+const ANIMS := {
+	"player": [0, {"idle": [0, 4, 5.0, true], "run": [4, 6, 13.0, true], "kick": [10, 2, 16.0, false], "death": [12, 3, 7.0, false]}],
+	"shambler": [1, {"walk": [0, 4, 5.0, true], "lunge": [4, 1, 1.0, false], "down": [5, 1, 1.0, false]}],
+	"horde": [2, {"walk": [0, 4, 5.0, true], "lunge": [4, 1, 1.0, false], "down": [5, 1, 1.0, false]}],
+	"runner": [3, {"walk": [0, 4, 12.0, true], "lunge": [4, 1, 1.0, false], "down": [5, 1, 1.0, false]}],
+	"bloater": [4, {"walk": [0, 4, 4.0, true], "lunge": [4, 1, 1.0, false], "down": [5, 1, 1.0, false]}],
+	"riot": [5, {"walk": [0, 4, 5.0, true], "lunge": [4, 1, 1.0, false], "down": [5, 1, 1.0, false]}],
+}
 # Logical texture name -> sliced sprite (tools/slice_sheets.py). Anything
 # without a sprite file falls back to the procedural generator below.
 const SPRITES := {
@@ -18,6 +30,8 @@ const SPRITES := {
 	# Weapons drawn with Atelier (tools/draw_weapons.py): top-down and HUD side views.
 	"w_pipe": "weapons/top_pipe", "w_pistol": "weapons/top_pistol", "w_shotgun": "weapons/top_shotgun",
 	"hud_pipe": "weapons/hud_pipe", "hud_pistol": "weapons/hud_pistol", "hud_shotgun": "weapons/hud_shotgun",
+	# 3/4-view sheets drawn with Atelier (tools/draw_characters.py, tools/draw_props.py).
+	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
 }
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
@@ -52,7 +66,7 @@ const FURN := [
 	["5a3030", "2a1414", "8a5050", 0], # corridor
 	["606874", "30343c", "9098a4", 0], # elevator lobby
 ]
-const ROOM_NAMES := ["ENTRY", "DANCE", "VIP LOUNGE", "KITCHEN", "BAR", "RESTROOM", "STORAGE", "STAFF ONLY", "ELEVATOR"]
+const ROOM_NAMES := ["MOTEL", "REDLINE", "VIP LOUNGE", "KITCHEN", "BAR", "RESTROOM", "STORAGE", "STAFF ONLY", "ELEVATOR"]
 
 # zone index -> lights as [x 0..1, y 0..1, colour, radius px, intensity]
 const LIGHTS := [
@@ -73,6 +87,8 @@ static var _snd := {}
 static var _music: AudioStreamWAV
 static var _mats := {}
 static var _paths := {}
+static var _frames := {}
+static var _props := {}
 
 var world
 var decal_nodes: Array = [] # one canvas per room (keeps each under the light limit)
@@ -82,6 +98,11 @@ var tracers: Array = [] # [a, b, life, color]
 var rings: Array = [] # [pos, radius, max_radius]
 var popups: Array = [] # [pos, text, life, color]
 var flashes: Array = [] # [pos, life]
+var slashes: Array = [] # [pos, angle, life]
+var ghosts: Array = [] # [texture, pos, flipped, life]
+var shells: Array = [] # [pos, velocity, height, vertical speed]
+var pools: Array = [] # [pos, age, next drop]
+var kick := Vector2.ZERO # directional camera shove
 var shake := 0.0
 var punch := 0.0 # camera zoom kick, as a fraction of the base zoom
 var _pool: Array = []
@@ -210,9 +231,8 @@ static func warm() -> void:
 	for n in ["pistol", "shotgun", "swing", "hit", "kick", "glass", "door", "groan", "boom", "die",
 			"pickup", "dash", "exec", "grab", "clear", "fuse", "empty"]:
 		snd(n)
-	for n in ["player_pipe", "player_pistol", "player_shotgun", "light", "cone", "shambler", "runner", "bloater", "glass", "door", "door_locked",
-			"w_pipe", "w_pistol", "w_shotgun", "hud_pipe", "hud_pistol", "hud_shotgun", "glow", "shadow", "vignette",
-			"corpse_shambler", "corpse_runner", "corpse_bloater", "corpse_player"]:
+	for n in ["chars_v2", "props_v2", "pixel", "light", "cone", "door", "door_locked",
+			"w_pipe", "w_pistol", "w_shotgun", "hud_pipe", "hud_pistol", "hud_shotgun", "glow", "shadow", "vignette"]:
 		tex(n)
 
 
@@ -226,6 +246,45 @@ static func mat(kind: String) -> CanvasItemMaterial:
 
 
 # ---------------------------------------------------------------- textures
+
+## Animation frames for a character, cut from the character sheet.
+static func frames(who: String) -> SpriteFrames:
+	if not _frames.has(who):
+		var sf := SpriteFrames.new()
+		sf.remove_animation("default")
+		var row: int = ANIMS[who][0]
+		for anim in ANIMS[who][1]:
+			var d: Array = ANIMS[who][1][anim]
+			sf.add_animation(anim)
+			sf.set_animation_speed(anim, d[2])
+			sf.set_animation_loop(anim, d[3])
+			for i in d[1]:
+				var at := AtlasTexture.new()
+				at.atlas = tex("chars_v2")
+				at.region = Rect2((d[0] + i) * CELL, row * CELL, CELL, CELL)
+				sf.add_frame(anim, at)
+		_frames[who] = sf
+	return _frames[who]
+
+
+static func frame_tex(who: String, anim: String, i: int) -> Texture2D:
+	return frames(who).get_frame_texture(anim, i)
+
+
+## Rectangle of a prop inside the props sheet image.
+static func prop_rect(n: String) -> Rect2i:
+	var p: Array = PropAtlas.PROPS[n]
+	return Rect2i(p[0], p[1], p[2], p[3])
+
+
+static func prop_tex(n: String) -> Texture2D:
+	if not _props.has(n):
+		var at := AtlasTexture.new()
+		at.atlas = tex("props_v2")
+		at.region = prop_rect(n)
+		_props[n] = at
+	return _props[n]
+
 
 ## Path of the sprite file for a texture name, or "" if there is none.
 ## AI-sheet sprites win over the CC0 pack; no file means procedural art.
@@ -287,6 +346,12 @@ static func _make(n: String) -> Image:
 		var p := n.split("_")
 		var f: Array = FLOORS[int(p[1])]
 		return _tile(Color(f[3] if p[2] == "1" else f[0]), Color(f[1]), f[2], int(p[1]) * 7 + int(p[2]))
+	if n == "chars_v2":
+		return _fallback_chars()
+	if n == "props_v2":
+		return _fallback_props()
+	if n == "pixel":
+		return _solid(1, 1, Color.WHITE, Color.WHITE)
 	if n.begins_with("hud_"):
 		return _make("w_" + n.substr(4)) # no side-view art: reuse the top-down weapon
 	if n.begins_with("table_"):
@@ -364,6 +429,37 @@ static func _tile(a: Color, b: Color, mode: int, sd: int) -> Image:
 				4:
 					if (x + y) % 8 == 0 or (x - y + 16) % 8 == 0: c = b
 			im.set_pixel(x, y, c)
+	return im
+
+
+## Stand-in character sheet (same layout as the real one): plain figures.
+static func _fallback_chars() -> Image:
+	var im := Image.create(CELL * 15, CELL * 6, false, Image.FORMAT_RGBA8)
+	var cols := [Color("f0b820"), Color("8a4a44"), Color("c9cfd6"), Color("7a2a36"), Color("a8b83a"), Color("586044")]
+	for row in 6:
+		for i in (15 if row == 0 else 6):
+			var lying := i == (14 if row == 0 else 5)
+			var o := Vector2i(i * CELL, row * CELL)
+			if lying:
+				im.fill_rect(Rect2i(o + Vector2i(8, 44), Vector2i(48, 12)), Color("8e0b1c"))
+				im.fill_rect(Rect2i(o + Vector2i(14, 44), Vector2i(36, 9)), cols[row])
+			else:
+				im.fill_rect(Rect2i(o + Vector2i(24, 44), Vector2i(16, 16)), cols[row].darkened(0.5))
+				im.fill_rect(Rect2i(o + Vector2i(22, 22), Vector2i(20, 24)), cols[row])
+				im.fill_rect(Rect2i(o + Vector2i(25, 8), Vector2i(15, 15)), cols[row].lightened(0.4))
+	return im
+
+
+## Stand-in props sheet: flat blocks with a darker front face.
+static func _fallback_props() -> Image:
+	var im := Image.create(PropAtlas.SIZE.x, PropAtlas.SIZE.y, false, Image.FORMAT_RGBA8)
+	for n in PropAtlas.PROPS:
+		var p: Array = PropAtlas.PROPS[n]
+		var col := Color.from_hsv(float(hash(n) % 100) / 100.0, 0.45, 0.7)
+		var depth: int = p[5] * 32
+		im.fill_rect(Rect2i(p[0], p[1], p[2], p[3]), col.darkened(0.45))
+		if depth > 0:
+			im.fill_rect(Rect2i(p[0], p[1], p[2], depth), col)
 	return im
 
 
@@ -550,10 +646,50 @@ func _splat(pos: Vector2, r: int, dir := Vector2.ZERO) -> void:
 				_add([0, p.floor(), Vector2(s, s), BLOOD[1]])
 
 
-func casing(pos: Vector2) -> void:
-	var p := pos + Vector2(randf_range(-7, 7), randf_range(-7, 7))
-	if not world.solid_at(p):
-		_add([0, p.floor(), Vector2(2, 1) if randf() < 0.5 else Vector2(1, 2), Color("e8c040")])
+## A brass shell: ejected sideways, arcs, bounces, then stays on the floor.
+func casing(pos: Vector2, aim: Vector2) -> void:
+	var side := aim.orthogonal() * (1.0 if randf() < 0.5 else -1.0)
+	shells.append([pos, side * randf_range(30, 60) - aim * randf_range(10, 30), 10.0, randf_range(50, 90)])
+
+
+func splinters(pos: Vector2, dir: Vector2) -> void:
+	for i in 14:
+		var v := dir.rotated(randf_range(-0.9, 0.9)) * randf_range(60, 220)
+		parts.append([pos, v, randf_range(0.2, 0.45), Color("b47c4a") if i % 2 == 0 else Color("5e3618")])
+	for i in 7:
+		var p := pos + dir.rotated(randf_range(-0.8, 0.8)) * randf_range(8, 38)
+		if not world.solid_at(p):
+			_add([0, p.floor(), Vector2(randi_range(1, 3), 1), Color("8a5630")])
+
+
+## Acid and gibs left by a burst bloater.
+func acid(pos: Vector2, radius: float) -> void:
+	for i in 22:
+		var p := pos + Vector2.RIGHT.rotated(randf() * TAU) * randf_range(4.0, radius)
+		if not world.solid_at(p):
+			var s := float(randi_range(1, 4))
+			_add([0, p.floor(), Vector2(s, s * 0.6).ceil(), Color("8ad022") if i % 3 else Color("4a7a12")])
+	for i in 16:
+		var v := Vector2.RIGHT.rotated(randf() * TAU) * randf_range(60, 240)
+		parts.append([pos, v, randf_range(0.25, 0.5), Color("d0ff5a") if i % 2 == 0 else Color("b3122a")])
+
+
+## A pool that keeps spreading under a fresh corpse.
+func pool(pos: Vector2) -> void:
+	pools.append([pos, 0.0, 0.0])
+
+
+func slash(pos: Vector2, angle: float) -> void:
+	slashes.append([pos, angle, 0.14])
+
+
+func ghost(texture: Texture2D, pos: Vector2, flipped: bool) -> void:
+	ghosts.append([texture, pos, flipped, 0.22])
+
+
+func add_kick(v: Vector2) -> void:
+	kick += v
+	kick = kick.limit_length(8.0)
 
 
 func shards(pos: Vector2) -> void:
@@ -564,13 +700,16 @@ func shards(pos: Vector2) -> void:
 		parts.append([pos, Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 120.0, 0.25, Color(0.8, 1, 1)])
 
 
-func corpse(kind: String, pos: Vector2, rot: float) -> void:
-	for i in 4:
-		_splat(pos + Vector2(randf_range(-5, 5), randf_range(-5, 5)), 4)
-	var tint := Color.WHITE
-	if has_sprite("corpse_" + kind) and kind == "runner":
-		tint = Color(1.0, 0.6, 0.6) # shared zombie corpse sprite, reddened
-	_add([1, pos, tex("corpse_" + kind), rot, tint, sprite_scale("corpse_" + kind)])
+## Leaves a sprawled body (a frame from the character sheet) on the floor.
+## `pos` is where the feet were; `flipped` mirrors it away from the blow.
+func corpse(texture: Texture2D, pos: Vector2, flipped: bool, size := 1.0) -> void:
+	var s := ART_SCALE * size
+	_add([1, pos + Vector2(0, -28.0 * s), texture, randf_range(-0.12, 0.12), Color.WHITE, Vector2(-s if flipped else s, s)])
+
+
+## Any texture as a floor decal (a broken door, debris).
+func debris(texture: Texture2D, pos: Vector2, rot: float, size: float) -> void:
+	_add([1, pos, texture, rot, Color(0.8, 0.8, 0.8), Vector2(size, size)])
 
 
 func flash(pos: Vector2) -> void:
@@ -584,7 +723,7 @@ func _draw_decals(i: int) -> void:
 			node.draw_rect(Rect2(d[1], d[2]), d[3])
 		else:
 			var t: Texture2D = d[2]
-			node.draw_set_transform(d[1], d[3], Vector2(d[5], d[5]))
+			node.draw_set_transform(d[1], d[3], d[5])
 			node.draw_texture(t, -t.get_size() / 2.0, d[4])
 			node.draw_set_transform(Vector2.ZERO, 0.0)
 
@@ -617,6 +756,33 @@ func add_punch(a: float) -> void:
 
 
 func _process(delta: float) -> void:
+	kick = kick.move_toward(Vector2.ZERO, delta * 60.0)
+	for s in slashes:
+		s[2] -= delta
+	slashes = slashes.filter(func(s): return s[2] > 0.0)
+	for g in ghosts:
+		g[3] -= delta
+	ghosts = ghosts.filter(func(g): return g[3] > 0.0)
+	for s in shells:
+		s[0] += s[1] * delta
+		s[2] += s[3] * delta
+		s[3] -= 520.0 * delta
+		if s[2] <= 0.0:
+			s[2] = 0.0
+			s[3] *= -0.45
+			s[1] *= 0.5
+			if absf(s[3]) < 22.0:
+				s[3] = 0.0
+				if not world.solid_at(s[0]):
+					_add([0, s[0].floor(), Vector2(2, 1) if randf() < 0.5 else Vector2(1, 2), Color("e8c040")])
+	shells = shells.filter(func(s): return s[2] > 0.0 or s[3] != 0.0)
+	for p in pools:
+		p[1] += delta
+		if p[1] >= p[2]:
+			p[2] += 0.22
+			var reach: float = 3.0 + p[1] * 3.2
+			_splat(p[0] + Vector2(randf_range(-reach, reach), randf_range(-reach * 0.5, reach * 0.5)), 2 + int(p[1] * 0.5))
+	pools = pools.filter(func(p): return p[1] < 3.5)
 	shake = maxf(0.0, shake - delta * 28.0)
 	punch = maxf(0.0, punch - delta * 0.35)
 	for p in parts:
@@ -637,13 +803,28 @@ func _process(delta: float) -> void:
 	tracers = tracers.filter(func(t): return t[2] > 0.0)
 	rings = rings.filter(func(r): return r[1] < r[2])
 	popups = popups.filter(func(p): return p[2] > 0.0)
-	var busy := not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty() and flashes.is_empty())
+	var busy := not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty()
+			and flashes.is_empty() and slashes.is_empty() and ghosts.is_empty() and shells.is_empty())
 	if busy or _was_busy:
 		queue_redraw()
 	_was_busy = busy
 
 
 func _draw() -> void:
+	for g in ghosts:
+		# Dash after-image: the body frame, tinted and fading.
+		var half := CELL * ART_SCALE / 2.0
+		var at: Vector2 = g[1] + Vector2(half if g[2] else -half, -half - 28.0 * ART_SCALE)
+		draw_texture_rect(g[0], Rect2(at, Vector2(-half * 2.0 if g[2] else half * 2.0, half * 2.0)), false,
+				Color(0.3, 0.9, 1.0, g[3] * 2.4))
+	for s in slashes:
+		var k: float = s[2] / 0.14
+		var sweep := 1.25
+		var from: float = s[1] - sweep + (1.0 - k) * 1.2
+		draw_arc(s[0], 21.0, from, s[1] + sweep, 14, Color(1, 1, 1, k), 3.0)
+		draw_arc(s[0], 17.5, from, s[1] + sweep * 0.8, 12, Color(0.3, 0.95, 1.0, k * 0.8), 2.0)
+	for s in shells:
+		draw_rect(Rect2(s[0] + Vector2(0, -s[2]), Vector2(2, 1)), Color("ffe27a"))
 	for f in flashes:
 		draw_circle(f[0], 9.0, Color(1.0, 0.75, 0.3, 0.35))
 		draw_circle(f[0], 5.0, Color(1.0, 0.95, 0.7, 0.9))

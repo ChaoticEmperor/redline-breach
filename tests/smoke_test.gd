@@ -79,7 +79,7 @@ func _run() -> void:
 		var kinds := {}
 		for z in L.zombies:
 			kinds[z.kind] = true
-		good = good and kinds.size() == 3 and L.exits.size() > 0 and L.pickups.size() >= 2
+		good = good and kinds.size() == 4 and L.exits.size() > 0 and L.pickups.size() >= 2
 		ok(good, "seed %d: deterministic, connected, %d zombies, %d doors" % [s, L.zombies.size(), L.doors.size()])
 	ok(Layout.generate(1).sig != Layout.generate(2).sig, "different seeds differ")
 
@@ -123,10 +123,19 @@ func _run() -> void:
 	var p0: Vector2 = p.global_position
 	c.move = Vector2.RIGHT
 	await frames(20)
+	ok(p.body.animation == "run", "run animation plays while moving")
 	c.move = Vector2.ZERO
 	ok(p.global_position.x - p0.x > 20.0, "player moves")
+	await frames(4)
+	ok(p.body.animation == "idle", "idle animation plays when standing")
+	var sorted_ok: bool = w.y_sort_enabled and w.props.size() > 10 and p.get_parent() == w
+	for prop in w.props:
+		sorted_ok = sorted_ok and prop.get_parent() == w and prop.z_index == 0
+	for e2 in w.enemy_list:
+		sorted_ok = sorted_ok and e2.get_parent() == w and e2.z_index == 0
+	ok(sorted_ok, "actors and %d props share one Y-sorted layer" % w.props.size())
 	p0 = p.global_position
-	c.q.dash = true
+	c.press("dash")
 	await frames(10)
 	ok(p.global_position.distance_to(p0) > 30.0, "dash covers ground")
 
@@ -166,12 +175,13 @@ func _run() -> void:
 		await physics_frame
 		t += 1
 	ok(not p.alive and main.state == "dead", "unanswered grab kills (~%.2fs)" % (t / 60.0))
+	ok(p.body.animation == "death", "death animation plays")
 	ok(t >= 18 and t <= 30, "escape window is about 0.4s")
 
 	# Instant restart on the same seed.
 	var sig: String = w.L.sig
 	var seed_before: int = main.floor_seed
-	c.q.any = true
+	c.press("any")
 	await frames(3)
 	p = main.player
 	w = main.world
@@ -183,7 +193,7 @@ func _run() -> void:
 	# Grab -> kick breaks free -> execute the downed zombie.
 	e = await _get_grabbed()
 	ok(p.grab_t > 0.0, "grabbed again")
-	c.q.kick = true
+	c.press("kick")
 	await frames(3)
 	ok(p.alive and p.grab_t <= 0.0, "kick breaks the grab")
 	ok(e.is_down(), "grabber is knocked down")
@@ -191,7 +201,7 @@ func _run() -> void:
 	e.global_position = p.global_position + Vector2(12, 0)
 	ok(p.context() == "EXEC", "action button becomes EXEC near a downed zombie")
 	var k: int = main.kills
-	c.q.kick = true
+	c.press("kick")
 	await frames(3)
 	ok(main.kills == k + 1, "execution kills")
 	ok(p.context() == "KICK", "action button returns to KICK")
@@ -208,9 +218,13 @@ func _run() -> void:
 	c.aim = n
 	await frames(25)
 	ok(not w.los(p.global_position, d.center + n * 13.0), "closed door blocks sight")
-	c.q.kick = true
+	c.press("kick")
 	await frames(3)
 	ok(d.open and w.los(p.global_position, d.center + n * 13.0), "kick opens the door")
+	ok(w.flying.size() == 1, "kicked door flies off its hinges")
+	var before: int = w.fx.decal_count()
+	await frames(30)
+	ok(w.flying.is_empty() and w.fx.decal_count() > before, "the door lands and stays as debris")
 
 	# Shoot out a window.
 	var gc := Vector2i(-1, -1)
@@ -226,6 +240,18 @@ func _run() -> void:
 	await frames(4)
 	c.fire = false
 	ok(not w.glass.has(gc), "bullets break glass")
+
+	# Riot guard: light rounds bounce off the front only.
+	var guard = _pick(["riot"])
+	var hp0: int = guard.hp
+	guard.facing = Vector2.LEFT
+	guard.hit(2, Vector2.RIGHT, 0.0, false)
+	ok(guard.hp == hp0, "riot armour stops a pistol round from the front")
+	guard.hit(1, Vector2.RIGHT, 0.0, true)
+	ok(guard.hp == hp0 - 1, "pipe and shotgun get through the armour")
+	guard.facing = Vector2.RIGHT
+	guard.hit(2, Vector2.RIGHT, 0.0, false)
+	ok(guard.hp == hp0 - 3, "a pistol round in the back gets through")
 
 	# Bloater detonates and the floor can be cleared.
 	p.global_position = w.center(w.L.start)
@@ -247,7 +273,7 @@ func _run() -> void:
 	await frames(3)
 	ok(main.state == "clear", "reaching the elevator clears the floor")
 	await frames(50)
-	c.q.any = true
+	c.press("any")
 	await frames(3)
 	ok(main.floor_seed == seed_before + 1 and main.state == "play", "next floor uses the next seed")
 

@@ -1,6 +1,9 @@
 extends CharacterBody2D
-## Zombies. Shambler: slow, grabs. Runner: fast, fragile, grabs.
-## Bloater: slow, tanky, swells and explodes on contact or death.
+## The infected, drawn in 3/4 view with walk / lunge / downed frames.
+## Shambler: slow, grabs. Runner: fast, fragile, grabs. Bloater: slow, tanky,
+## swells and bursts into acid on contact or death. Riot guard: armoured;
+## pistol rounds bounce off its front, so flank it, kick it over, or use the
+## pipe or shotgun.
 
 const Fx = preload("res://scripts/fx.gd")
 const World = preload("res://scripts/world.gd")
@@ -11,9 +14,10 @@ const SIGHT := 150.0
 const BLAST := 44.0
 const LURK := Color(2.0, 2.0, 2.0) # over-bright so shapes still read in the dark
 const STATS := {
-	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100},
-	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150},
-	"bloater": {"hp": 5, "speed": 26.0, "r": 7.0, "score": 250},
+	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100, "size": 1.0},
+	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150, "size": 0.95},
+	"bloater": {"hp": 5, "speed": 26.0, "r": 7.0, "score": 250, "size": 1.25},
+	"riot": {"hp": 6, "speed": 34.0, "r": 5.5, "score": 400, "size": 1.1},
 }
 
 var main
@@ -28,6 +32,7 @@ var state := IDLE
 var dead := false
 var target := Vector2.ZERO
 var last_seen := Vector2.ZERO
+var facing := Vector2.RIGHT
 var sees := false
 var lost_t := 0.0
 var think_t := 0.0
@@ -41,8 +46,9 @@ var stagger_t := 0.0
 var knock := Vector2.ZERO
 var wander := Vector2.ZERO
 var wander_t := 0.0
-var vis: Sprite2D
-var base_scale := 1.0
+var body: AnimatedSprite2D
+var base_scale := 0.4
+var skin := "shambler"
 
 
 func setup(p_main, p_world, p_player, p_kind: String) -> void:
@@ -55,6 +61,7 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	hp = st.hp
 	speed = st.speed * randf_range(0.9, 1.1)
 	radius = st.r
+	facing = Vector2.RIGHT if randf() < 0.5 else Vector2.LEFT
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	collision_layer = World.L_ENEMY
 	collision_mask = World.SOLID
@@ -65,22 +72,33 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	add_child(shape)
 	var shadow := Sprite2D.new()
 	shadow.texture = Fx.tex("shadow")
-	shadow.position = Vector2(1, 2)
 	shadow.scale = Vector2.ONE * (radius / 5.0)
 	add_child(shadow)
-	vis = Sprite2D.new()
-	vis.texture = Fx.tex(kind)
-	base_scale = Fx.sprite_scale(kind)
-	vis.scale = Vector2.ONE * base_scale
-	vis.rotation = randf() * TAU
-	vis.modulate = LURK
-	add_child(vis)
+	base_scale = Fx.ART_SCALE * st.size
+	body = AnimatedSprite2D.new()
+	# Shamblers come in two looks; the club's dancefloor crowd is the second.
+	skin = "horde" if kind == "shambler" and randf() < 0.5 else kind
+	body.sprite_frames = Fx.frames(skin)
+	body.scale = Vector2.ONE * base_scale
+	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
+	body.modulate = LURK
+	body.play("walk")
+	body.frame = randi() % 4
+	add_child(body)
 	think_t = randf() * 0.2
 	world.enemy_list.append(self)
 
 
 func is_down() -> bool:
 	return state == DOWN and not dead
+
+
+func _pose(anim: String, moving := true) -> void:
+	if body.animation != anim:
+		body.play(anim)
+	if anim == "walk":
+		body.speed_scale = 1.0 if moving else 0.0
+	body.flip_h = facing.x < 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -91,15 +109,16 @@ func _physics_process(delta: float) -> void:
 		down_t -= delta
 		velocity = knock
 		move_and_slide()
+		_pose("down")
 		if down_t <= 0.0:
 			state = CHASE
-			vis.modulate = LURK
+			body.modulate = LURK
 		return
 	if state == FUSE:
 		fuse_t -= delta
 		var k := 1.0 - fuse_t / 0.45
-		vis.scale = Vector2.ONE * base_scale * (1.0 + k * 0.5)
-		vis.modulate = LURK.lerp(Color(6, 3, 1), k)
+		body.scale = Vector2.ONE * base_scale * (1.0 + k * 0.5)
+		body.modulate = LURK.lerp(Color(6, 3, 1), k)
 		if fuse_t <= 0.0:
 			_explode()
 		return
@@ -125,6 +144,7 @@ func _physics_process(delta: float) -> void:
 				target = last_seen
 
 	var want := Vector2.ZERO
+	var grabbing := false
 	match state:
 		IDLE:
 			wander_t -= delta
@@ -137,7 +157,8 @@ func _physics_process(delta: float) -> void:
 			if global_position.distance_to(target) < 14.0:
 				state = IDLE
 		CHASE:
-			if player.grab_t > 0.0 and player.grabbers.has(self):
+			grabbing = player.grab_t > 0.0 and player.grabbers.has(self)
+			if grabbing:
 				want = Vector2.ZERO
 			elif sees and dist < 90.0:
 				want = to_p / maxf(dist, 0.01)
@@ -158,7 +179,10 @@ func _physics_process(delta: float) -> void:
 					want += d.normalized() * 0.5
 	velocity = want * speed * (0.3 if stagger_t > 0.0 else 1.0) + knock
 	if want.length() > 0.1:
-		vis.rotation = lerp_angle(vis.rotation, want.angle(), 0.2)
+		facing = want.normalized()
+	elif state == CHASE and dist > 0.1:
+		facing = to_p / dist
+	_pose("lunge" if grabbing or (state == CHASE and dist < 26.0) else "walk", want.length() > 0.05)
 	move_and_slide()
 
 	# Alerted zombies batter down doors and smash through glass in their way.
@@ -219,8 +243,15 @@ func alert() -> void:
 			o.alert()
 
 
-func hit(dmg: int, dir: Vector2, kb := 0.0) -> void:
+## `pierce` is false for light rounds, which riot armour stops from the front.
+func hit(dmg: int, dir: Vector2, kb := 0.0, pierce := true) -> void:
 	if dead:
+		return
+	if kind == "riot" and not pierce and state != DOWN and dir.dot(facing) < -0.2:
+		fx.spark(global_position + Vector2(0, -11))
+		fx.play("empty", 0.5, -4.0)
+		fx.popup(global_position + Vector2(0, -28), "ARMOR", Fx.CYAN)
+		alert()
 		return
 	hp -= dmg
 	knock = dir * kb
@@ -245,7 +276,9 @@ func knockdown(dir: Vector2) -> void:
 	state = DOWN
 	down_t = 1.8
 	knock = dir * 170.0
-	vis.modulate = Color(1.0, 1.0, 1.4)
+	if absf(dir.x) > 0.1:
+		facing = Vector2(-signf(dir.x), 0) # falls away from the blow
+	body.modulate = Color(1.2, 1.2, 1.6)
 	fx.play("hit")
 
 
@@ -263,8 +296,10 @@ func _die(dir: Vector2, executed := false) -> void:
 	dead = true
 	world.enemy_list.erase(self)
 	player.grabbers.erase(self)
-	fx.corpse(kind, global_position, dir.angle() + PI if dir != Vector2.ZERO else vis.rotation)
+	# The body drops away from the killing blow and its pool keeps spreading.
+	fx.corpse(Fx.frame_tex(skin, "down", 0), global_position, dir.x > 0.0 if absf(dir.x) > 0.1 else body.flip_h, STATS[kind].size)
 	fx.blood(global_position, dir, 14)
+	fx.pool(global_position)
 	fx.play("die")
 	main.on_kill(self, executed)
 	queue_free()
@@ -276,6 +311,7 @@ func _start_fuse() -> void:
 	state = FUSE
 	fuse_t = 0.45
 	velocity = Vector2.ZERO
+	_pose("lunge")
 	fx.play("fuse")
 
 
@@ -283,12 +319,14 @@ func _explode() -> void:
 	dead = true
 	world.enemy_list.erase(self)
 	var pos := global_position
-	fx.blood(pos, Vector2.ZERO, 70, 46.0)
+	fx.corpse(Fx.frame_tex(kind, "down", 0), pos, false, STATS[kind].size)
+	fx.acid(pos, BLAST)
+	fx.blood(pos, Vector2.ZERO, 40, 40.0)
 	fx.ring(pos, BLAST)
 	fx.play("boom", 1.0, -3.0)
 	fx.add_shake(8.0)
 	fx.add_punch(0.08)
-	world.flash(pos, Color("ffb040"), 6.0)
+	world.flash(pos, Color("b8ff40"), 6.0)
 	main.on_kill(self, false)
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - pos

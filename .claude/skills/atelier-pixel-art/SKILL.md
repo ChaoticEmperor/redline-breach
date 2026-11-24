@@ -1,6 +1,6 @@
 ---
 name: atelier-pixel-art
-description: Draw or change small pixel-art sprites for REDLINE // 1989 with the Atelier CLI (weapons, HUD icons, pickups, decals, animation frames, pixel fonts). Use when asked to draw, redraw, tweak or animate a sprite or icon, when adding a new weapon or pickup, or when a texture is still a plain procedural placeholder. Not for the Gemini sprite sheets (use tools/slice_sheets.py) or for lighting and effects (procedural in fx.gd).
+description: Draw or change pixel art for REDLINE // 1989 with the Atelier CLI - characters and their animations, 3/4 props, weapons, HUD icons, signs. Use when asked to draw, redraw, add detail to, restyle or animate a character, enemy, prop, weapon or icon, or when a texture is still a plain placeholder. Not for the floor textures (tools/slice_sheets.py) or for lighting and effects (procedural in fx.gd).
 ---
 
 # Drawing pixel art with Atelier
@@ -29,27 +29,34 @@ Do not run `atelier connect`. The scripts find the binary on PATH or in `~/.loca
 
 ## 2. Where drawings live
 
-- `tools/draw_weapons.py` holds the weapon grids. Add related sprites to its `SPRITES` dict.
-- For an unrelated set (for example HUD icons or an animation), copy that script to `tools/draw_<set>.py` and
-  change `OUT` and `SPRITES`. Keep its behaviour: exit 0 when Atelier is missing, run in a temporary
-  `ATELIER_HOME`, export at `scale: 1`, delete the `.json` sheet metadata.
-- Output goes to `assets/sprites/<set>/`. Never hand-edit files there.
+| Script | Draws | How |
+| --- | --- | --- |
+| `tools/draw_characters.py` | player and infected animation sheet (64x64 cells) | posed skeletons rendered as lit forms |
+| `tools/draw_props.py` | 3/4 props, glass, signs, alarm lamp, packed into one atlas | one function per prop |
+| `tools/draw_weapons.py` | weapons: side views and top-down views | character grids, one character per pixel |
+
+`tools/_atelier.py` is shared: `Canvas` (lit `ball`, `limb`, `slab`, `disc`, plus `rect`, `line`, `speckle`),
+`ramp()` for dark-to-light colour ramps, and `paint()` which sends a canvas through Atelier. Output goes to
+`assets/sprites/`. Never hand-edit files there. Every script exits 0 when Atelier is missing.
 
 ## 3. Drawing rules
 
-- One character is one pixel. `.` is transparent. Colours come from `LEGEND`; add a key there before using a
-  new character. Rows shorter than the widest row are padded with `.` on the right.
-- Scale: sprite files hold **4 pixels per world pixel** (a 16px floor tile is 64 sprite pixels). A pistol in
-  the hand is about 26x6; a character's shoulders are about 68 pixels across.
-- Anything that rotates in the world (held weapons, characters, pickups) is drawn **top-down, facing right**.
-- HUD icons are side views. The HUD scales them to fit a 32x18 unit slot, so keep them near that proportion.
-- Give every sprite a 1px outline in `k` and no more than three tones per material; soft gradients turn to
-  mud at this size.
+- **View:** 3/4 oblique. Characters show face, body and legs and face right (the game flips them). A prop shows
+  its top face and, below it, its front face.
+- **Scale:** character and prop sheets hold 2 pixels per world pixel, so one map cell is 32 pixels. A prop
+  covering `fw` x `fh` cells is `fw*32` wide and `fh*32 + height` tall and stands on its bottom edge. Characters
+  stand with their feet on row 60 of a 64x64 cell, centred on column 32. Weapons hold 4 pixels per world pixel.
+- **Form before detail:** build shapes from the lit primitives with a 4-5 step `ramp()`, then add detail
+  (seams, tears, wounds, labels, glints) on top. Flat `rect` fills on their own read as blocky; that is what
+  got the first version of these sheets rejected.
+- **Animation:** change the pose arguments of `figure()` (leg and arm angles, bob, lean), not pixels.
+- **Layout is a contract.** Character rows and frame ranges must match `ANIMS` in `scripts/fx.gd`. Adding a prop
+  means adding it to `PROPS` in `draw_props.py`; the script regenerates `scripts/prop_atlas.gd`.
 
 ## 4. Draw, look, repeat
 
 ```sh
-python3 tools/draw_weapons.py
+python3 tools/draw_characters.py   # or draw_props.py / draw_weapons.py
 ```
 
 Then enlarge the result and look at it with the Read tool before wiring it in. Do not judge a sprite from its
@@ -75,13 +82,15 @@ For work the grid approach does not cover (animation frames, effects, fonts), li
 
 ## 5. Wire it into the game
 
-1. Map the texture name to the file in `SPRITES` at the top of `scripts/fx.gd`
-   (for example `"hud_pistol": "weapons/hud_pistol"`).
-2. Keep a procedural fallback for that name in `Fx._make()`. CI does not run this tool, and the game must work
-   with any sprite missing.
-3. Where the texture is shown in the world, multiply the node's scale by `Fx.sprite_scale(name)` (0.25 for
-   sprite files, 1 for procedural art). The HUD sizes icons itself.
-4. Run `godot --headless --import` and commit the new `.png` files together with their `.png.import` files.
+- **New prop:** choose where it appears in `_prop_for()` in `scripts/world.gd` (by room type and the shape of
+  the furniture piece). Single-cell props are repeated across a piece; a larger prop is used when its footprint
+  matches the piece exactly.
+- **New animation or character:** add the row or frame range to `ANIMS` in `scripts/fx.gd` and play it from
+  `player.gd` / `enemy.gd`.
+- **New standalone texture:** map its name to the file in `SPRITES` in `scripts/fx.gd`.
+- Always keep a procedural fallback in `Fx._make()` (the sheets have `_fallback_chars()` / `_fallback_props()`):
+  CI does not run these tools and the game must work with any sprite missing.
+- Run `godot --headless --import` and commit new `.png` files together with their `.png.import` files.
 
 ## 6. Finish
 
