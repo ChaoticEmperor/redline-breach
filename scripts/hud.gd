@@ -101,9 +101,10 @@ func _draw_hud() -> void:
 	var w: String = p.weapon
 	_box(wr, Color(0.3, 0.08, 0.42, 0.85))
 	_box(wr, CYAN, false, 1.5)
-	var icon: Texture2D = Fx.tex("w_" + w)
-	var isz := icon.get_size() * 2.2
-	_canvas.draw_texture_rect(icon, Rect2((wr.position + Vector2(20, wr.size.y / 2.0) - isz / 2.0) * u, isz * u), false, Color(1.25, 1.25, 1.4))
+	var icon: Texture2D = Fx.tex("hud_" + w)
+	var isz := icon.get_size()
+	isz *= minf(32.0 / isz.x, 18.0 / isz.y) # fit the icon slot, keep proportions
+	_canvas.draw_texture_rect(icon, Rect2((wr.position + Vector2(21, wr.size.y / 2.0) - isz / 2.0) * u, isz * u), false)
 	_label(Rect2(wr.position.x + 40, wr.position.y + 2, wr.size.x - 42, 12), w.to_upper(), 9, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
 	var sub := "SILENT" if w == "pipe" else "LOUD  %d LEFT" % p.ammo[w]
 	_label(Rect2(wr.position.x + 40, wr.position.y + 13, wr.size.x - 42, 10), sub, 6.5, CYAN if w == "pipe" else YELLOW, HORIZONTAL_ALIGNMENT_LEFT)

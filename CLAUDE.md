@@ -55,12 +55,18 @@ Sprite files hold **4 pixels per world pixel** and are drawn at 1/4 scale, so th
    "Topdown Shooter" pack (CC0, license kept in `assets/cc0/kenney_topdown_shooter/License.txt`) into
    `assets/cc0/` if it is not already there and maps survivor/zombie poses to our character names. The pack has
    one zombie and no pipe, shotgun, corpse, door or blood art, so it only covers the six living characters.
+   Weapon art is separate: `python3 tools/draw_weapons.py` draws the pipe, pistol and shotgun (HUD side views
+   and top-down views) from character grids in the script through the Atelier CLI
+   (https://github.com/marmikshah/atelier, a headless pixel-art editor) into `assets/sprites/weapons/`. Use the
+   same approach for other small, exact-size pixel art (icons, pickups, animation frames).
 3. **Procedural** — generated in `fx.gd`. Every texture must keep this fallback so the game and CI work with any
    subset of sprite files (CI runs neither tool).
 
 Rules:
 
-- Both tools need Pillow, are deterministic and exit 0 when their input is missing. Re-run them when inputs change
+- `slice_sheets.py` and `import_cc0.py` need Pillow; `draw_weapons.py` needs `atelier` on PATH or in
+  `~/.local/bin` (not installed in fresh cloud sessions; see its README). All are deterministic and exit 0 when
+  their input or tool is missing. Re-run them when inputs change
   and commit the output plus the `.png.import` files Godot creates. Never hand-edit `assets/sprites/`.
 - `assets/raw/`, `assets/cc0/` and `web_template/` carry a `.gdignore` so Godot does not import them.
 - Characters are drawn strictly top-down, facing right; the game rotates them to the aim/move direction.
