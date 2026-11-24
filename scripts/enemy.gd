@@ -12,12 +12,12 @@ enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
 
 const SIGHT := 150.0
 const BLAST := 44.0
-const LURK := Color(1.2, 1.2, 1.2) # slightly over-bright so shapes read in dim rooms
+const ACTOR_LIGHT := 2 # light layer for actors; room lights only reach layer 1
 const STATS := {
 	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100, "size": 1.0},
-	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150, "size": 0.95},
-	"bloater": {"hp": 5, "speed": 26.0, "r": 7.0, "score": 250, "size": 1.25},
-	"riot": {"hp": 6, "speed": 34.0, "r": 5.5, "score": 400, "size": 1.1},
+	"runner": {"hp": 1, "speed": 98.0, "r": 4.5, "score": 150, "size": 1.0},
+	"bloater": {"hp": 5, "speed": 26.0, "r": 7.0, "score": 250, "size": 1.0},
+	"riot": {"hp": 6, "speed": 34.0, "r": 5.5, "score": 400, "size": 1.0},
 }
 
 var main
@@ -47,7 +47,8 @@ var knock := Vector2.ZERO
 var wander := Vector2.ZERO
 var wander_t := 0.0
 var body: AnimatedSprite2D
-var base_scale := 0.4
+var base_scale := 0.5
+var lit := Color.WHITE # the body's normal modulate: its own colours, unaffected by room lights
 var skin := "shambler"
 
 
@@ -81,7 +82,9 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	body.sprite_frames = Fx.frames(skin)
 	body.scale = Vector2.ONE * base_scale
 	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
-	body.modulate = LURK
+	lit = world.actor_tint()
+	body.modulate = lit
+	body.light_mask = ACTOR_LIGHT
 	body.play("walk")
 	body.frame = randi() % 4
 	add_child(body)
@@ -112,13 +115,13 @@ func _physics_process(delta: float) -> void:
 		_pose("down")
 		if down_t <= 0.0:
 			state = CHASE
-			body.modulate = LURK
+			body.modulate = lit
 		return
 	if state == FUSE:
 		fuse_t -= delta
 		var k := 1.0 - fuse_t / 0.45
 		body.scale = Vector2.ONE * base_scale * (1.0 + k * 0.5)
-		body.modulate = LURK.lerp(Color(6, 3, 1), k)
+		body.modulate = lit.lerp(lit * Color(2.2, 1.4, 0.6), k)
 		if fuse_t <= 0.0:
 			_explode()
 		return
@@ -278,7 +281,7 @@ func knockdown(dir: Vector2) -> void:
 	knock = dir * 170.0
 	if absf(dir.x) > 0.1:
 		facing = Vector2(-signf(dir.x), 0) # falls away from the blow
-	body.modulate = Color(1.2, 1.2, 1.6)
+	body.modulate = lit * Color(0.75, 0.75, 1.0)
 	fx.play("hit")
 
 

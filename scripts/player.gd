@@ -12,7 +12,7 @@ const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
 const ZOOM := 6.0 # on the 1920x1080 canvas
-const SHOULDER := Vector2(0, -12) # weapon arm pivot, relative to the feet
+const SHOULDER := Vector2(0, -13) # weapon arm pivot, relative to the feet
 const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # held weapon sprite scale
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
@@ -68,12 +68,16 @@ func setup(p_main, p_world, p_controls) -> void:
 	body.sprite_frames = Fx.frames("player")
 	body.scale = Vector2.ONE * Fx.ART_SCALE
 	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
+	body.modulate = world.actor_tint(1.0)
+	body.light_mask = 2 # actors keep their own colours; see World.actor_tint()
 	body.play("idle")
 	add_child(body)
 	arm = Node2D.new()
 	arm.position = SHOULDER
 	add_child(arm)
 	wep = Sprite2D.new()
+	wep.modulate = world.actor_tint(1.0)
+	wep.light_mask = 2
 	arm.add_child(wep)
 	# Flashlight beam along the aim, a small pool of light around the body,
 	# and a muzzle flash light that fires for a few frames per shot.
@@ -95,6 +99,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	muzzle_light.texture_scale = 4.5
 	muzzle_light.color = Color("ffc060")
 	muzzle_light.energy = 0.0
+	muzzle_light.range_item_cull_mask = 3 # a shot lights the actors as well as the room
 	muzzle_light.position = SHOULDER
 	add_child(muzzle_light)
 	cam = Camera2D.new()

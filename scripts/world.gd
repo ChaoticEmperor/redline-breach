@@ -207,11 +207,20 @@ func build(layout: Dictionary) -> void:
 		_self_lit(lamp)
 		add_child(lamp)
 		_alarms.append(_add_light(a + Vector2(0, 10), Color("ff3a1c"), 1.6, 1.5))
+	# The dancefloor pulse glows on the floor, under everyone standing on it.
 	_overlay = Node2D.new()
 	_overlay.material = Fx.mat("add")
 	_overlay.draw.connect(_draw_overlay)
-	_glow.add_child(_overlay)
+	_self_lit(_overlay)
+	add_child(_overlay)
 	_glow.add_child(fx)
+
+
+## Colour that shows an actor's own palette at `strength` of full brightness.
+## Actors are on light layer 2, which the room lights do not reach: under
+## saturated neon they washed out to white and pink.
+func actor_tint(strength := 0.92) -> Color:
+	return _unlit * strength
 
 
 func _self_lit(node: CanvasItem) -> void:
@@ -234,6 +243,7 @@ func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> PointLi
 ## Short burst of light in the world (explosions).
 func flash(pos: Vector2, col: Color, size: float) -> void:
 	var light := _add_light(pos, col, 3.0, size)
+	light.range_item_cull_mask = 3 # a blast lights the actors too
 	var tween := create_tween()
 	tween.tween_property(light, "energy", 0.0, 0.3)
 	tween.tween_callback(light.queue_free)
