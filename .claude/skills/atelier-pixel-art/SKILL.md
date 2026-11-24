@@ -47,6 +47,7 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 | `tools/draw_characters.py` | player and infected animation sheet (64x64 cells) | posed skeletons rendered as lit forms |
 | `tools/draw_props.py` | 3/4 props, glass, signs, alarm lamp, packed into one atlas | one function per prop |
 | `tools/draw_weapons.py` | weapons: side views and top-down views | character grids, one character per pixel |
+| `tools/convert_reference.py` | the player sheet (96x96 cells), converted from `assets/raw/player_reference.png` | recovers the reference's pixels and rebuilds them in Atelier with gates |
 
 `tools/_atelier.py` is shared: `Canvas` (lit `ball`, `limb`, `slab`, `disc`, plus `rect`, `line`, `speckle`),
 `ramp()` for dark-to-light colour ramps, and `paint()` which sends a canvas through Atelier. Output goes to
@@ -107,6 +108,10 @@ each time. A sprite is not finished because the numbers pass, and it is not fini
 ### Working from a reference image (the method that produced the best art so far)
 
 When there is a generated or hand-made reference in the target style, convert it; do not redraw it.
+`tools/convert_reference.py` does all of this for the player: copy it (or add a second spec) for another
+character. Its `SPEC` holds what is particular to a sheet: the source rows and columns of each pose, the
+backdrop colour, the frame order, the palette size and the hand patches. It keeps the Atelier document in
+`tools/out/atelier/`, so fixes can be made by region and then recorded in the spec's `patches`.
 
 1. **Measure its pixel grid.** Sum the absolute luminance differences along x and along y to get two edge
    profiles, then find the pitch (try 4.0 to 12.0 in steps of 0.25) whose sample points land on the most edge
