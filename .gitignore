@@ -8,3 +8,7 @@ firebase-debug.log
 
 # Python
 __pycache__/
+
+# Visual polisher output and ad-hoc screenshots
+tools/out/
+screenshots/

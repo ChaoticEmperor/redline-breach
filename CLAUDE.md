@@ -76,15 +76,41 @@ Depth and lighting (`world.gd`):
 - The world node is Y-sorted. Actors sit on their feet; a furniture piece is one sprite standing on the bottom
   edge of its footprint; walls with floor behind them get a cap that hides the feet of whoever stands there.
   The floor, gore and self-lit wall decoration use negative `z_index` so they never sort against actors.
-- Dark `CanvasModulate` ambient (`#1a1528`), `PointLight2D` room lights, strobing alarm lamps, prop glows,
+- Dim violet `CanvasModulate` ambient (`AMBIENT`, `#3e2654`), `PointLight2D` room lights (`Fx.LIGHTS`, magenta-leaning), strobing alarm lamps, prop glows,
   flashlight cone, muzzle flash and explosions. Neon trim and signs are unlit (`light_mask = 0`, modulate that
   cancels the ambient). FX (tracers, slashes, popups) draw on a `CanvasLayer` that follows the viewport.
 - **Lighting, glow, gore, particles and all audio stay procedural** (`fx.gd`).
 
+## Visual polisher: asset slicer, frame capture, visual diff
+
+A measuring loop for look-and-feel work against the concept art in `tools/ref/ref_*.png` (nightclub = primary
+target, motel, subway). Everything it writes goes to `tools/out/` (git-ignored, `.gdignore`d); CI runs none of it.
+
+```sh
+tools/run_polisher.sh baseline      # before touching anything: capture + audit + diff, copy kept in tools/out/baseline/
+# ... change tuning values ...
+tools/run_polisher.sh after         # same again; the brief gains a Before column from tools/out/baseline/
+```
+
+| Piece | What it does |
+| --- | --- |
+| `tools/capture_views.gd` | Real-renderer screenshots. Run as `xvfb-run -a godot --path . --rendering-driver opengl3 -s tools/capture_views.gd -- <out dir> [view ...] [WxH]` (headless Godot cannot render). Views: `entry` (spawn) or a zone name (`dancefloor`, `vip`, `bar`, ...). Zombies are frozen and each view is shot on a fixed beat, so runs are repeatable. Writes `actual_<view>.png` plus a `.json` sidecar with the player figure's share of the viewport height (52 sheet px x `Fx.ART_SCALE` x camera zoom). |
+| `tools/asset_slicer_diff.py audit` | Slices `assets/sprites/` (64px character grid, props via `scripts/prop_atlas.gd`) and the green-screen sheets in `assets/raw/`; measures bounding box, alpha coverage and dominant colours; flags empty / tiny / clipped cells. `sprites_contact.png`, `asset_report.json`. Unused cells, feet on the cell floor and tight atlas rectangles are `info`, not errors. |
+| `tools/asset_slicer_diff.py diff` | `actual_*.png` vs `ref_*.png` at 480x270: brightness, near-black %, highlight %, edge density, local contrast, vivid share and its purple / pink / cyan split, character height ratio (reference ratios are estimates in the script). `dancefloor` pairs with `ref_nightclub`; unmatched views use `ref_nightclub`. `diff_report.png`, `diff_summary.json`. |
+| `tools/run_polisher.sh [label] [view ...]` | Capture (skipped with a message when `xvfb-run` or `godot` is missing), then audit + diff, then `polish_brief.md`: the largest gaps with their direction and the flagged assets. It only reports; acting on the brief is a separate step. |
+
+- Tuning knobs the brief points at: `ZOOM` (`player.gd`); `AMBIENT`, `LIGHT_SPREAD`, `DANCE_COLORS`, `DANCE_ALPHA`
+  (`world.gd`); `Fx.LIGHTS` colours / radii / energies (`fx.gd`); `LURK` (`enemy.gd`, zombie over-brightness, lower it
+  when the ambient goes up).
+- The hue shares are binned (purple from 260 degrees), so a blue-violet floor can flip between "blue" and "purple" on a
+  small tint change; read them together with the images, not alone.
+- Look at the captures as well as the numbers. Keep the smoke test passing: the polisher is not a check.
+
 ## Display and web shell
 
 - Base canvas 1920x1080, stretch `canvas_items` + `expand`: wider phones (20:9, 21:9) get more width, never bars.
-- World units are unchanged (16px tiles); `Camera2D` zoom is 3.6. The floor is baked at 3 texture pixels per world
+- World units are unchanged (16px tiles); `Camera2D` zoom is 6.0 (`ZOOM` in `player.gd`), so the
+  player figure is about 12% of the screen height and roughly one room is in view. The floor is baked at 3 texture pixels per world
   pixel. Text drawn in the world is drawn at 4x size and scaled down to stay sharp.
 - Portrait and landscape are both supported. HUD and touch controls are laid out in units (the SHORT screen side
   is 360 units; `W` x `H` units overall) by `Hud.layout()` / `Controls.layout()` and anchored to the corners; never
