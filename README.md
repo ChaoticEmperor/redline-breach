@@ -54,8 +54,8 @@ Things to know:
 
 - Atelier is version 0.2 and its README says the code has had no line-by-line human review. It runs offline
   and only writes the files the script exports.
-- It installs to `~/.local/bin`. Cloud sessions start without it; add the two install lines to the
-  environment's setup script to have it every time.
+- It installs to `~/.local/bin`. In Claude Code cloud sessions the repo's session-start hook
+  (`.claude/hooks/session-start.sh`) installs it, and Godot, automatically.
 
 Claude Code sessions in this repo have a project skill, `.claude/skills/atelier-pixel-art/`, with the drawing
 rules (scale, view, layout), the craft order, the preview loop and how to wire new art into the game. Atelier's
