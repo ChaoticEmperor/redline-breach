@@ -5,6 +5,12 @@ description: Draw or change pixel art for REDLINE // 1989 with the Atelier CLI -
 
 # Drawing pixel art with Atelier
 
+**Before drawing or reviewing anything, load the `pixel-art-engineer` skill.** It holds the craft rules (clean
+lines, outline style, shading pitfalls, material texture, colour ramps, dithering, animation, export) that every
+sprite in this game is judged against. This skill covers the other half: which script draws what, the scale and
+layout the game expects, and how to wire art in. Where the two disagree on project specifics (view, scale, sheet
+layout), this skill wins; where they disagree on craft, `pixel-art-engineer` wins and the art should be fixed.
+
 Atelier (https://github.com/marmikshah/atelier) is an offline pixel-art editor with no GUI. You draw by
 calling its tools from the shell; it does not generate art, you place the pixels. In this project every
 drawing lives as a character grid in a Python script, so it is reviewable and can be regenerated.
@@ -29,7 +35,7 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 - The two options keep it from editing shell profiles and from registering itself with coding agents. Do not
   run `atelier connect`: this project drives Atelier through its command line only.
 - The scripts in `tools/` find the binary on PATH or in `~/.local/bin`.
-- To refresh the vendored Atelier guides after an upgrade: `atelier skills install --dir .claude/skills`.
+- To refresh the vendored Atelier guides after an upgrade: `tools/refresh_atelier_skills.sh`.
 - To remove it: `atelier uninstall` (it asks first).
 - Atelier is version 0.2 and its README says the code has had no line-by-line human review. On a user's own
   machine, ask before installing.
@@ -64,9 +70,9 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 
 Atelier's own three guides are installed next to this skill as `atelier-sprite`, `atelier-scene` and
 `atelier-review` (copied verbatim by `atelier skills install --dir .claude/skills`; re-run that to update them,
-never edit them by hand; Atelier is MIT licensed). They are written for drawing layer by layer inside Atelier.
-General pixel-art craft (lines and jaggies, outlines, shading pitfalls, ramps, tiling, animation, export) is in
-the `pixel-art-engineer` skill. **For anything that ships in this game, this skill wins**: our sheets are drawn by code through `tools/draw_*.py`,
+refresh them with `tools/refresh_atelier_skills.sh`, which also re-adds the project note at the end of each;
+Atelier is MIT licensed). They are written for drawing layer by layer inside Atelier.
+**For anything that ships in this game, this skill wins**: our sheets are drawn by code through `tools/draw_*.py`,
 with the scale, layout and wiring rules above. Use the bundled guides for technique, and for one-off art drawn
 directly in Atelier. These are the parts that carry over to our scripts, in the order to apply them. Each level
 invalidates the ones below it.
@@ -84,6 +90,16 @@ invalidates the ones below it.
    built-in dithering instead.
 5. **Detail, only where it earns attention.** Detail everywhere is detail nowhere. Put it on the focal area
    and leave the rest in clean forms.
+
+Checklist from `pixel-art-engineer` to run on every sprite before it is wired in:
+
+- lines: no stray single pixels, no mixed staircase steps on a diagonal or curve;
+- outline: one outline style per sheet, chosen on purpose;
+- shading: no pillow shading, no banding that hugs the outline;
+- materials: cloth, metal, wood and skin read differently, not as the same shaded blob;
+- dithering: light on small or animated sprites (it flickers between frames);
+- preview at 1x on a neutral grey background and flipped horizontally;
+- one pixel size across everything on screen.
 
 Rules that apply at every level:
 

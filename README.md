@@ -57,9 +57,10 @@ Things to know:
 - It installs to `~/.local/bin`. In Claude Code cloud sessions the repo's session-start hook
   (`.claude/hooks/session-start.sh`) installs it, and Godot, automatically.
 
-Claude Code sessions in this repo have a project skill, `.claude/skills/atelier-pixel-art/`, with the drawing
-rules (scale, view, layout), the craft order, the preview loop and how to wire new art into the game. Atelier's
-own three guides (`atelier-sprite`, `atelier-scene`, `atelier-review`) are vendored beside it.
+Claude Code sessions in this repo have skills in `.claude/skills/` for art work: `pixel-art-engineer` (general
+pixel-art craft rules, loaded first), `atelier-pixel-art` (how this project draws and wires art: scale, view,
+layout, preview loop), and Atelier's own three guides (`atelier-sprite`, `atelier-scene`, `atelier-review`),
+refreshed with `tools/refresh_atelier_skills.sh`.
 
 ## Licences
 
