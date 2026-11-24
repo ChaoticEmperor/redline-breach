@@ -11,21 +11,28 @@ drawing lives as a character grid in a Python script, so it is reviewable and ca
 
 ## 1. Make sure Atelier is installed
 
-It is not present in a fresh cloud session.
-
 ```sh
 command -v atelier || ls ~/.local/bin/atelier
 ```
 
-If it is missing, ask the user before installing (the project's README says its code has had no line-by-line
-human review). Install without touching shell profiles or agent config:
+In Claude Code cloud sessions the repo's SessionStart hook (`.claude/hooks/session-start.sh`) installs Atelier
+(and Godot) automatically when they are missing, so it should already be there. If it is not (the hook warned
+that a download failed, or you are on a local machine), install it by hand:
 
 ```sh
 curl -fsSL -o /tmp/atelier-install.sh https://github.com/marmikshah/atelier/releases/latest/download/install.sh
 ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # installs ~/.local/bin/atelier
+~/.local/bin/atelier --version
 ```
 
-Do not run `atelier connect`. The scripts find the binary on PATH or in `~/.local/bin`.
+- macOS and Linux only. The installer downloads a prebuilt binary and checks it against the release checksums.
+- The two options keep it from editing shell profiles and from registering itself with coding agents. Do not
+  run `atelier connect`: this project drives Atelier through its command line only.
+- The scripts in `tools/` find the binary on PATH or in `~/.local/bin`.
+- To refresh the vendored Atelier guides after an upgrade: `atelier skills install --dir .claude/skills`.
+- To remove it: `atelier uninstall` (it asks first).
+- Atelier is version 0.2 and its README says the code has had no line-by-line human review. On a user's own
+  machine, ask before installing.
 
 ## 2. Where drawings live
 

@@ -35,6 +35,14 @@ If art sources changed, first run the matching tool (see the art pipeline table 
 
 Treat any `SCRIPT ERROR` / `Parse Error` in the output as a failure even when the exit code is 0.
 
+## Cloud session setup
+
+`.claude/hooks/session-start.sh` (registered in `.claude/settings.json`) runs at the start of Claude Code cloud
+sessions and installs what a fresh container lacks, only when missing: Godot 4.7.2 and the Atelier CLI, both into
+`~/.local/bin`. It runs synchronously, does nothing outside cloud sessions, and only warns if a download fails.
+It does not install the Web export templates (1.2 GB): without them the export check cannot run locally, so rely
+on CI for that step or install them by hand into `~/.local/share/godot/export_templates/4.7.2.stable/`.
+
 ## CI / deploy (`.github/workflows/deploy.yml`)
 
 - Checks run on pushes to `main`, `develop`, `feature/**`, on PRs targeting `develop`/`main`, and on manual dispatch.
