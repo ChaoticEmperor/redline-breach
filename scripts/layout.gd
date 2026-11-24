@@ -26,7 +26,7 @@ const REQUIRED := ["dance", "vip", "kitchen", "bar", "rest", "storage", "corr", 
 const FILLER := ["corr", "corr2", "bar", "storage"]
 
 # Chunk legend: . floor  # wall  T furniture  G glass  L elevator door  E exit
-#   P player start  z shambler  r runner  b bloater  1 pistol  2 shotgun
+#   P player start  z shambler  r runner  b bloater  g riot guard  1 pistol  2 shotgun
 # Rows 4-5 on the left/right edge and columns 7-8 on the top/bottom edge are
 # connection ports and must stay walkable.
 const CHUNKS := {
@@ -106,7 +106,7 @@ const CHUNKS := {
 		"................",
 		".TT.TT....TT.TT.",
 		".TT.TT....TT.TT.",
-		"......z.........",
+		"......z....g....",
 		"................",
 		"................",
 		".........r......",
@@ -118,10 +118,10 @@ const CHUNKS := {
 		"#####......#####",
 		"#####......#####",
 		"#####..z...#####",
+		".TT..........TT.",
 		"................",
 		"................",
-		"................",
-		"................",
+		"...T............",
 		"#####......#####",
 		"#####...r..#####",
 		"#####......#####",
@@ -141,7 +141,7 @@ const CHUNKS := {
 	"elev": [
 		"................",
 		"................",
-		"..z..######..z..",
+		"..g..######..z..",
 		".....#EEEE#.....",
 		".....#EEEE#.....",
 		".....#EEEE#.....",
@@ -228,6 +228,7 @@ static func generate(seed_value: int) -> Dictionary:
 					"z": zombies.append({"kind": "shambler", "cell": cell})
 					"r": zombies.append({"kind": "runner", "cell": cell})
 					"b": zombies.append({"kind": "bloater", "cell": cell})
+					"g": zombies.append({"kind": "riot", "cell": cell})
 					"1": pickups.append({"kind": "pistol", "cell": cell})
 					"2": pickups.append({"kind": "shotgun", "cell": cell})
 				cells[idx] = code

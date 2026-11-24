@@ -1,5 +1,6 @@
 extends CharacterBody2D
-## The player: twin-stick movement, dash, silent pipe / loud guns,
+## The player: 3/4-view animated body that flips to face the aim, with a
+## weapon arm that rotates freely. Movement, dash, silent pipe / loud guns,
 ## contextual kick / execute, and the grab-break window.
 
 const Fx = preload("res://scripts/fx.gd")
@@ -11,6 +12,8 @@ const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
 const ZOOM := 3.6 # on the 1920x1080 canvas
+const SHOULDER := Vector2(0, -12) # weapon arm pivot, relative to the feet
+const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # held weapon sprite scale
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
 	"pistol": {"cd": 0.2, "pellets": 1, "spread": 0.025, "dmg": 2, "range": 420.0, "loud": 400.0, "pickup": 10},
@@ -34,10 +37,13 @@ var grab_t := 0.0
 var grab_immune := 0.0
 var grabbers: Array = []
 var kick_cd := 0.0
+var kick_t := 0.0
 var swing_t := 0.0
-var vis: Node2D
+var recoil := 0.0
+var ghost_t := 0.0
+var body: AnimatedSprite2D
+var arm: Node2D
 var wep: Sprite2D
-var body: Sprite2D
 var muzzle_light: PointLight2D
 var cam: Camera2D
 
@@ -57,40 +63,40 @@ func setup(p_main, p_world, p_controls) -> void:
 	add_child(shape)
 	var shadow := Sprite2D.new()
 	shadow.texture = Fx.tex("shadow")
-	shadow.position = Vector2(1, 2)
 	add_child(shadow)
-	vis = Node2D.new()
-	add_child(vis)
+	body = AnimatedSprite2D.new()
+	body.sprite_frames = Fx.frames("player")
+	body.scale = Vector2.ONE * Fx.ART_SCALE
+	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
+	body.play("idle")
+	add_child(body)
+	arm = Node2D.new()
+	arm.position = SHOULDER
+	add_child(arm)
 	wep = Sprite2D.new()
-	wep.centered = false
-	vis.add_child(wep)
-	body = Sprite2D.new()
-	vis.add_child(body)
-	# Flashlight beam along the aim, a small pool of light around the feet,
+	arm.add_child(wep)
+	# Flashlight beam along the aim, a small pool of light around the body,
 	# and a muzzle flash light that fires for a few frames per shot.
 	var beam := PointLight2D.new()
 	beam.texture = Fx.tex("cone")
-	beam.texture_scale = 2.4
+	beam.texture_scale = 2.6
 	beam.color = Color("fff2d0")
-	beam.energy = 1.5
-	vis.add_child(beam)
+	beam.energy = 1.6
+	arm.add_child(beam)
 	var pool := PointLight2D.new()
 	pool.texture = Fx.tex("light")
-	pool.texture_scale = 1.6
-	pool.energy = 0.9
+	pool.texture_scale = 1.8
+	pool.energy = 1.0
+	pool.position = SHOULDER
 	add_child(pool)
 	muzzle_light = PointLight2D.new()
 	muzzle_light.texture = Fx.tex("light")
-	muzzle_light.texture_scale = 4.0
+	muzzle_light.texture_scale = 4.5
 	muzzle_light.color = Color("ffc060")
 	muzzle_light.energy = 0.0
+	muzzle_light.position = SHOULDER
 	add_child(muzzle_light)
 	cam = Camera2D.new()
-	cam.zoom = Vector2(ZOOM, ZOOM)
-	cam.limit_left = 0
-	cam.limit_top = 0
-	cam.limit_right = world.L.w * World.T
-	cam.limit_bottom = world.L.h * World.T
 	add_child(cam)
 	_set_weapon("pipe")
 
@@ -103,7 +109,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var look := aim * 26.0 if alive else Vector2.ZERO
 	var jitter: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * fx.shake
-	cam.offset = cam.offset.lerp(look, minf(1.0, delta * 6.0)) + jitter
+	cam.offset = cam.offset.lerp(look, minf(1.0, delta * 6.0)) + jitter + fx.kick
 	# Zoom follows the short screen side so portrait and landscape show the
 	# same amount of room; if the view is larger than the floor, centre it.
 	var screen := get_viewport().get_visible_rect().size
@@ -115,15 +121,28 @@ func _process(delta: float) -> void:
 	cam.limit_top = -int(spare.y)
 	cam.limit_right = int(floor_size.x + spare.x)
 	cam.limit_bottom = int(floor_size.y + spare.y)
+
 	muzzle_light.energy = maxf(0.0, muzzle_light.energy - delta * 40.0)
-	var swing := 0.0
+	recoil = maxf(0.0, recoil - delta * 40.0)
+	kick_t = maxf(0.0, kick_t - delta)
+	if not alive:
+		return
+	body.flip_h = aim.x < 0.0
+	arm.rotation = aim.angle()
+	arm.position = SHOULDER - aim * recoil
+	wep.flip_v = aim.x < 0.0
 	if swing_t > 0.0:
 		swing_t -= delta
-		swing = lerpf(1.3, -1.3, clampf(swing_t / 0.16, 0.0, 1.0))
-	# With a full-body weapon sprite the whole figure swings; otherwise only
-	# the separate procedural weapon does.
-	wep.rotation = swing
-	body.rotation = swing * 0.6 if not wep.visible else 0.0
+		wep.rotation = lerpf(1.4, -1.4, clampf(swing_t / 0.16, 0.0, 1.0)) * (-1.0 if wep.flip_v else 1.0)
+	else:
+		wep.rotation = 0.0
+	var anim := "idle"
+	if kick_t > 0.0:
+		anim = "kick"
+	elif velocity.length() > 12.0:
+		anim = "run"
+	if body.animation != anim:
+		body.play(anim)
 
 
 func _physics_process(delta: float) -> void:
@@ -136,7 +155,8 @@ func _physics_process(delta: float) -> void:
 
 	if grab_t > 0.0:
 		grab_t -= delta
-		vis.position = Vector2(randf_range(-1, 1), randf_range(-1, 1))
+		velocity = Vector2.ZERO
+		body.position = Vector2(randf_range(-1, 1), randf_range(-1, 1))
 		var kicked: bool = controls.take("kick")
 		var dashed: bool = controls.take("dash")
 		if kicked or dashed:
@@ -144,7 +164,7 @@ func _physics_process(delta: float) -> void:
 		elif grab_t <= 0.0:
 			die("GRABBED")
 		return
-	vis.position = Vector2.ZERO
+	body.position = Vector2.ZERO
 
 	var mv: Vector2 = controls.move
 	var av: Vector2 = controls.aim
@@ -158,16 +178,21 @@ func _physics_process(delta: float) -> void:
 			aim = (target.global_position - global_position).normalized()
 		elif mv.length() > 0.3:
 			aim = mv.normalized()
-	vis.rotation = aim.angle()
 
-	if controls.take("dash") and dash_cd <= 0.0:
+	# Presses are buffered by `controls`, so only take one when it can act.
+	if dash_cd <= 0.0 and controls.take("dash"):
 		dash_dir = mv.normalized() if mv.length() > 0.2 else aim
 		dash_t = DASH_TIME
 		dash_cd = DASH_CD
+		ghost_t = 0.0
 		fx.play("dash")
 	if dash_t > 0.0:
 		dash_t -= delta
 		velocity = dash_dir * DASH_SPEED
+		ghost_t -= delta
+		if ghost_t <= 0.0:
+			ghost_t = 0.03
+			fx.ghost(body.sprite_frames.get_frame_texture(body.animation, body.frame), global_position, body.flip_h)
 	else:
 		velocity = mv.limit_length(1.0) * SPEED
 	move_and_slide()
@@ -184,7 +209,7 @@ func _physics_process(delta: float) -> void:
 
 	if controls.take("swap"):
 		_swap()
-	if controls.take("kick"):
+	if kick_cd <= 0.0 and controls.take("kick"):
 		_action()
 	if controls.fire:
 		_fire()
@@ -204,17 +229,15 @@ func give(kind: String) -> void:
 	ammo[kind] += WEAPONS[kind].pickup
 	_set_weapon(kind)
 	fx.play("pickup")
-	fx.popup(global_position + Vector2(0, -12), kind.to_upper(), Fx.CYAN)
+	fx.popup(global_position + Vector2(0, -26), kind.to_upper(), Fx.CYAN)
 
 
 func _set_weapon(kind: String) -> void:
 	weapon = kind
-	body.texture = Fx.tex("player_" + kind)
-	body.scale = Vector2.ONE * Fx.sprite_scale("player_" + kind)
-	wep.visible = not Fx.has_sprite("player_" + kind)
-	wep.texture = Fx.tex("w_" + kind)
-	wep.scale = Vector2.ONE * Fx.sprite_scale("w_" + kind)
-	wep.position = Vector2(3, 3)
+	# Side-view weapon held at the shoulder; its grip sits on the pivot.
+	wep.texture = Fx.tex("hud_" + kind)
+	wep.scale = Vector2.ONE * HELD[kind] * (1.0 if Fx.has_sprite("hud_" + kind) else 3.0)
+	wep.offset = Vector2(wep.texture.get_width() * 0.32, 0)
 
 
 func _swap() -> void:
@@ -239,15 +262,18 @@ func _fire() -> void:
 		_set_weapon("pipe")
 		return
 	ammo[weapon] -= 1
-	var muzzle := global_position + aim * 9.0
+	var heavy := weapon == "shotgun"
+	var muzzle := global_position + SHOULDER + aim * 13.0
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
-	fx.casing(global_position)
-	fx.flash(muzzle + aim * 3.0)
+	fx.casing(global_position + SHOULDER, aim)
+	fx.flash(muzzle)
 	muzzle_light.energy = 2.5
+	recoil = 5.0 if heavy else 3.0
 	fx.play(weapon)
-	fx.add_shake(5.0 if weapon == "shotgun" else 2.5)
-	fx.add_punch(0.05 if weapon == "shotgun" else 0.025)
+	fx.add_shake(5.0 if heavy else 2.5)
+	fx.add_punch(0.05 if heavy else 0.025)
+	fx.add_kick(-aim * (5.0 if heavy else 2.5))
 	main.shots += 1
 	world.noise(global_position, w.loud)
 	if ammo[weapon] <= 0:
@@ -255,7 +281,8 @@ func _fire() -> void:
 
 
 func _bullet(muzzle: Vector2, dir: Vector2, reach: float, dmg: int) -> void:
-	# Cast from the body centre so a muzzle poking into a wall cannot tunnel.
+	# Cast along the floor from the feet so a muzzle poking into a wall
+	# cannot tunnel; the tracer is drawn at chest height.
 	var from := global_position
 	var to := from + dir * reach
 	var end := to
@@ -271,16 +298,17 @@ func _bullet(muzzle: Vector2, dir: Vector2, reach: float, dmg: int) -> void:
 			continue
 		end = hit.position
 		if col.has_method("hit"):
-			col.hit(dmg, dir, 70.0)
+			col.hit(dmg, dir, 70.0, weapon != "pistol")
 		else:
-			fx.spark(end)
+			fx.spark(end + SHOULDER)
 		break
-	fx.tracer(muzzle, end)
+	fx.tracer(muzzle, end + SHOULDER)
 
 
 func _swing() -> void:
 	swing_t = 0.16
 	fx.play("swing")
+	fx.slash(global_position + SHOULDER, aim.angle())
 	var landed := false
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - global_position
@@ -293,6 +321,8 @@ func _swing() -> void:
 	if landed:
 		fx.play("hit")
 		fx.add_shake(3.0)
+		fx.add_kick(aim * 3.0)
+		main.hitstop()
 
 
 # ---------------------------------------------------------------- kick / exec
@@ -326,13 +356,13 @@ func context() -> String:
 
 
 func _action() -> void:
-	if kick_cd > 0.0:
-		return
 	kick_cd = 0.3
+	kick_t = 0.18
 	var target = _exec_target()
 	if target != null:
 		fx.play("exec")
 		fx.add_shake(4.0)
+		main.hitstop()
 		target.execute((target.global_position - global_position).normalized())
 		return
 	fx.play("kick")
@@ -345,6 +375,7 @@ func _action() -> void:
 		if d.length() < 26.0 and absf(aim.angle_to(d)) < 1.0:
 			e.knockdown(d.normalized())
 			fx.add_shake(2.0)
+			fx.add_kick(aim * 3.0)
 	var hit: Dictionary = world.ray(global_position, global_position + aim * 24.0, World.SOLID)
 	if not hit.is_empty():
 		if hit.collider.has_meta("door"):
@@ -369,6 +400,7 @@ func grab(e) -> bool:
 func _break_grab() -> void:
 	grab_t = 0.0
 	grab_immune = 0.7
+	kick_t = 0.18
 	grabbers.clear()
 	fx.play("kick")
 	fx.add_shake(4.0)
@@ -379,15 +411,17 @@ func _break_grab() -> void:
 
 
 func die(cause: String) -> void:
-	if not alive:
+	if not alive or dash_t > 0.0: # a dash is briefly invulnerable
 		return
 	alive = false
 	grab_t = 0.0
 	grabbers.clear()
 	velocity = Vector2.ZERO
-	vis.visible = false
-	fx.corpse("player", global_position, vis.rotation)
+	body.position = Vector2.ZERO
+	body.play("death")
+	arm.visible = false
 	fx.blood(global_position, Vector2.ZERO, 40, 22.0)
+	fx.pool(global_position)
 	fx.play("die", 0.7)
 	fx.add_shake(6.0)
 	main.player_died(cause)

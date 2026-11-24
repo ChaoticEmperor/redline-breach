@@ -1,10 +1,12 @@
 extends Node2D
-## The built floor: baked floor/prop texture, lighting, wall collision,
-## kickable doors, breakable glass, pickups, pathfinding grid, raycasts and
-## noise propagation.
+## The built floor in 3/4 view: baked floor and wall facades, Y-sorted props
+## and wall caps (so actors pass behind and in front of them), lighting,
+## collision, kickable doors, breakable glass, pickups, pathfinding, raycasts
+## and noise propagation.
 
 const Layout = preload("res://scripts/layout.gd")
 const Fx = preload("res://scripts/fx.gd")
+const PropAtlas = preload("res://scripts/prop_atlas.gd")
 
 const T := 16
 const L_WALL := 1
@@ -13,14 +15,20 @@ const L_GLASS := 4
 const L_PLAYER := 8
 const L_ENEMY := 16
 const SOLID := L_WALL | L_DOOR | L_GLASS
-const AMBIENT := Color("221a34")
+const AMBIENT := Color("1a1528")
 const B := 3 # baked floor texture pixels per world pixel
+const PROP_SCALE := 0.5 # props sheet pixels -> world pixels (32 per cell)
+const CAP := 8.0 # how far a wall's top edge rises over the floor behind it
 const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("d300c5"), Color("f9f002")]
 # zone index -> floor sprite in assets/sprites/floors/
 const ZONE_FLOOR := ["concrete", "dancefloor", "vip_carpet", "kitchen_tile", "bar_planks",
 	"restroom_tile", "concrete", "corridor_carpet", "elevator_steel"]
+# zone index -> plaster colour of the wall face seen from that room
+const ZONE_WALL := ["4e4a6c", "3c2466", "5c2468", "7c8694", "5e3a2c", "2c6068", "55503f", "5a2030", "4e5868"]
+const ZONE_SIGN := {0: "sign_motel", 1: "sign_redline", 2: "sign_lounge", 4: "sign_lounge"}
+const HAZARD_ZONES := [6, 7, 8] # service areas: hazard stripes and alarm lights
 
-static var _bake_cache := {} # seed -> [floor texture, neon trim rects]
+static var _bake_cache := {} # seed -> {floor, trims, props, alarms}
 
 var main
 var L: Dictionary
@@ -30,13 +38,17 @@ var doors: Array = [] # {body, pivot, cells, vertical, locked, open, center}
 var glass := {} # Vector2i -> StaticBody2D
 var pickups: Array = [] # {kind, pos, node}
 var enemy_list: Array = []
+var props: Array = [] # Sprite2D nodes of the furniture, Y-sorted
+var flying: Array = [] # doors in flight: {node, vel, life, hit}
 var exit_rect := Rect2()
 var exit_open := false
 var _glow: CanvasLayer
 var _overlay: Node2D
 var _neon: Node2D
 var _trims: Array = []
+var _alarms: Array = [] # flickering PointLight2Ds
 var _font: Font
+var _unlit := Color.WHITE # cancels the ambient tint for self-lit things
 var _dance: Array = []
 var _beat := -1
 
@@ -47,24 +59,28 @@ func build(layout: Dictionary) -> void:
 	var w: int = L.w
 	var h: int = L.h
 	_font = ThemeDB.fallback_font
+	_unlit = Color(1.0 / AMBIENT.r, 1.0 / AMBIENT.g, 1.0 / AMBIENT.b)
+	y_sort_enabled = true # children draw in order of their y: lower on screen is nearer
 
-	var baked: Array = _bake()
-	_trims = baked[1]
+	var baked: Dictionary = _bake()
+	_trims = baked.trims
 	# One sprite per room so no single item exceeds the 2D light limit.
 	for s in Layout.COLS * Layout.ROWS:
 		var spr := Sprite2D.new()
 		spr.centered = false
-		spr.texture = baked[0]
+		spr.texture = baked.floor
 		var r := _chunk_rect(s)
 		spr.region_enabled = true
 		spr.region_rect = Rect2(r.position * B, r.size * B)
 		spr.position = r.position
 		spr.scale = Vector2.ONE / B
+		spr.z_index = -10 # the floor is never sorted against actors
 		add_child(spr)
 
 	fx = Fx.new()
 	fx.world = self
 	for n in fx.decal_nodes:
+		n.z_index = -5
 		add_child(n)
 
 	astar = AStarGrid2D.new()
@@ -80,6 +96,7 @@ func build(layout: Dictionary) -> void:
 	add_child(walls)
 	for y in h:
 		var run := -1
+		var cap := -1
 		for x in w + 1:
 			var code := cells[y * w + x] if x < w else 0
 			var cell := Vector2i(x, y)
@@ -103,17 +120,38 @@ func build(layout: Dictionary) -> void:
 				shape.position = Vector2((run + x) * T / 2.0, y * T + T / 2.0)
 				walls.add_child(shape)
 				run = -1
+			# A wall with open floor behind (north of) it gets a cap that
+			# hides the feet of anyone standing there.
+			var capped := code == Layout.WALL and y > 0 and cells[(y - 1) * w + x] != Layout.WALL
+			if capped and cap < 0:
+				cap = x
+			elif not capped and cap >= 0:
+				_add_cap(cap, x, y)
+				cap = -1
 
 	for p in L.pickups:
 		var spr := Sprite2D.new()
 		spr.texture = Fx.tex("w_" + p.kind)
 		spr.position = center(p.cell)
 		spr.scale = Vector2.ONE * 1.5 * Fx.sprite_scale("w_" + p.kind)
+		spr.z_index = -1
 		add_child(spr)
 		pickups.append({"kind": p.kind, "pos": spr.position, "node": spr})
 
 	for d in L.doors:
 		_add_door(d)
+
+	for p in baked.props:
+		var spr := Sprite2D.new()
+		spr.texture = p.tex
+		spr.centered = false
+		spr.scale = Vector2.ONE * PROP_SCALE
+		spr.offset = Vector2(0, -p.tex.get_height()) # stands on its bottom edge
+		spr.position = p.pos
+		add_child(spr)
+		props.append(spr)
+		if p.glow != "":
+			_add_light(p.pos + Vector2(p.tex.get_width() * PROP_SCALE / 2.0, -6), Color(p.glow), 1.1, 1.3)
 
 	if not L.exits.is_empty():
 		exit_rect = Rect2(Vector2(L.exits[0]) * T, Vector2(T, T))
@@ -127,13 +165,7 @@ func build(layout: Dictionary) -> void:
 	for s in Layout.COLS * Layout.ROWS:
 		var origin := _chunk_origin(s)
 		for l in Fx.LIGHTS[_chunk_zone(s)]:
-			var light := PointLight2D.new()
-			light.texture = Fx.tex("light")
-			light.position = origin + Vector2(l[0] * Layout.CW, l[1] * Layout.CH) * T
-			light.texture_scale = l[3] * 2.4 / 64.0
-			light.color = Color(l[2])
-			light.energy = l[4]
-			add_child(light)
+			_add_light(origin + Vector2(l[0] * Layout.CW, l[1] * Layout.CH) * T, Color(l[2]), l[4], l[3] * 2.4 / 64.0)
 
 	# Neon, signs, dancefloor glow and FX sit on their own canvas so the
 	# ambient darkness does not dim them.
@@ -141,17 +173,38 @@ func build(layout: Dictionary) -> void:
 	_glow.layer = 1
 	_glow.follow_viewport_enabled = true
 	add_child(_glow)
+	# Neon trim, signs and alarm lamps are self-lit but stay in the world, under
+	# the actors, so nobody is ever drawn behind a wall decoration.
+	_neon = Node2D.new()
+	_neon.draw.connect(_draw_neon)
+	_self_lit(_neon)
+	add_child(_neon)
 	for s in Layout.COLS * Layout.ROWS:
+		var zone := _chunk_zone(s)
+		var at := _chunk_origin(s) + Vector2(6, -15)
 		var halo := Sprite2D.new()
 		halo.texture = Fx.tex("glow")
 		halo.material = Fx.mat("add")
-		halo.position = _chunk_origin(s) + Vector2(28, -8)
-		halo.scale = Vector2(1.8, 0.6)
-		halo.modulate = Color(Fx.PINK if s % 2 == 0 else Fx.CYAN, 0.55)
+		halo.position = at + Vector2(24, 7)
+		halo.scale = Vector2(2.0, 0.7)
+		halo.modulate = Color(Fx.PINK if s % 2 == 0 else Fx.CYAN, 0.5)
 		_glow.add_child(halo)
-	_neon = Node2D.new()
-	_neon.draw.connect(_draw_neon)
-	_glow.add_child(_neon)
+		if ZONE_SIGN.has(zone):
+			var sign := Sprite2D.new()
+			sign.texture = Fx.prop_tex(ZONE_SIGN[zone])
+			sign.centered = false
+			sign.scale = Vector2.ONE * PROP_SCALE
+			sign.position = at
+			_self_lit(sign)
+			add_child(sign)
+	for a in baked.alarms: # wall-mounted hazard lights in service areas
+		var lamp := Sprite2D.new()
+		lamp.texture = Fx.prop_tex("hazard_light")
+		lamp.scale = Vector2.ONE * PROP_SCALE
+		lamp.position = a
+		_self_lit(lamp)
+		add_child(lamp)
+		_alarms.append(_add_light(a + Vector2(0, 10), Color("ff3a1c"), 1.6, 1.5))
 	_overlay = Node2D.new()
 	_overlay.material = Fx.mat("add")
 	_overlay.draw.connect(_draw_overlay)
@@ -159,18 +212,49 @@ func build(layout: Dictionary) -> void:
 	_glow.add_child(fx)
 
 
-## Short burst of light in the world (explosions).
-func flash(pos: Vector2, col: Color, size: float) -> void:
+func _self_lit(node: CanvasItem) -> void:
+	node.modulate = _unlit
+	node.light_mask = 0
+	node.z_index = -3 # above floor and gore, below everything Y-sorted
+
+
+func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> PointLight2D:
 	var light := PointLight2D.new()
 	light.texture = Fx.tex("light")
 	light.position = pos
 	light.texture_scale = size
 	light.color = col
-	light.energy = 3.0
+	light.energy = energy
 	add_child(light)
+	return light
+
+
+## Short burst of light in the world (explosions).
+func flash(pos: Vector2, col: Color, size: float) -> void:
+	var light := _add_light(pos, col, 3.0, size)
 	var tween := create_tween()
 	tween.tween_property(light, "energy", 0.0, 0.3)
 	tween.tween_callback(light.queue_free)
+
+
+func _add_cap(x0: int, x1: int, y: int) -> void:
+	var cap := Sprite2D.new()
+	cap.texture = Fx.tex("pixel")
+	cap.centered = false
+	cap.scale = Vector2((x1 - x0) * T, CAP)
+	cap.offset = Vector2(0, -1) # rises above its sorting line (the wall's far edge)
+	cap.position = Vector2(x0 * T, y * T)
+	cap.modulate = Color("1a1026")
+	add_child(cap)
+	var edge := Sprite2D.new() # neon along the top of the cap, sorted with it
+	edge.texture = Fx.tex("pixel")
+	edge.centered = false
+	edge.scale = Vector2((x1 - x0) * T, 1)
+	edge.offset = Vector2(0, -CAP)
+	edge.position = cap.position
+	edge.modulate = (Fx.PINK if ((x0 / 17) + (y / 11)) % 2 == 0 else Fx.CYAN) * _unlit
+	edge.light_mask = 0
+	add_child(edge)
 
 
 # ---------------------------------------------------------------- baking
@@ -191,9 +275,10 @@ func _chunk_zone(s: int) -> int:
 	return L.zone[c.y * L.w + c.x]
 
 
-## Bakes floor tiles, walls, furniture and the exit pad into one texture and
-## collects the neon trim rectangles. Cached per seed so restarts are free.
-func _bake() -> Array:
+## Bakes floor tiles, wall tops and wall faces into one texture, builds the
+## furniture sprites and collects neon trim and alarm positions. Cached per
+## seed so restarts are free.
+func _bake() -> Dictionary:
 	if _bake_cache.has(L.seed):
 		return _bake_cache[L.seed]
 	var cells: PackedByteArray = L.cells
@@ -202,12 +287,20 @@ func _bake() -> Array:
 	var tp := T * B # one cell in baked pixels
 	var im := Image.create(w * tp, h * tp, false, Image.FORMAT_RGBA8)
 	var src := Rect2i(0, 0, tp, tp)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = L.seed
+	var alarms: Array = []
 	for y in h:
 		for x in w:
 			var code := cells[y * w + x]
 			var at := Vector2i(x, y) * tp
 			if code == Layout.WALL:
 				im.blit_rect(Fx.scaled("wall", tp), src, at)
+				if y + 1 < h and cells[(y + 1) * w + x] != Layout.WALL:
+					var zone: int = L.zone[(y + 1) * w + x]
+					_bake_facade(im, at, zone, rng)
+					if HAZARD_ZONES.has(zone) and (x * 7 + y * 3) % 6 == 0:
+						alarms.append(Vector2(x * T + T / 2.0, y * T + 9))
 				continue
 			var z: int = L.zone[y * w + x]
 			var sprite: String = "floors/" + ZONE_FLOOR[z]
@@ -219,13 +312,6 @@ func _bake() -> Array:
 			if code == Layout.EXIT:
 				im.blit_rect(Fx.scaled("exit", tp), src, at)
 
-	_bake_furniture(im)
-	if not L.exits.is_empty() and Fx.has_sprite("props/elevator_panel"):
-		var r := Rect2i(L.exits[0], Vector2i.ONE)
-		for c in L.exits:
-			r = r.merge(Rect2i(c, Vector2i.ONE))
-		_stamp(im, "props/elevator_panel", r, false, false)
-
 	# Neon trim where walls meet open space (drawn unlit on the glow canvas).
 	var trims: Array = []
 	for y in h:
@@ -234,22 +320,48 @@ func _bake() -> Array:
 				continue
 			var col: Color = Fx.PINK if ((x / 17) + (y / 11)) % 2 == 0 else Fx.CYAN
 			if y + 1 < h and cells[(y + 1) * w + x] != Layout.WALL:
-				trims.append([Rect2(x * T, y * T + T - 2, T, 2), col])
-			if y > 0 and cells[(y - 1) * w + x] != Layout.WALL:
-				trims.append([Rect2(x * T, y * T, T, 1), col])
+				trims.append([Rect2(x * T, y * T + T - 1, T, 1), col])
 			if x + 1 < w and cells[y * w + x + 1] != Layout.WALL:
 				trims.append([Rect2(x * T + T - 1, y * T, 1, T), col])
 			if x > 0 and cells[y * w + x - 1] != Layout.WALL:
 				trims.append([Rect2(x * T, y * T, 1, T), col])
 	if _bake_cache.size() > 4:
 		_bake_cache.clear()
-	_bake_cache[L.seed] = [ImageTexture.create_from_image(im), trims]
+	_bake_cache[L.seed] = {"floor": ImageTexture.create_from_image(im), "trims": trims,
+		"props": _build_props(), "alarms": alarms}
 	return _bake_cache[L.seed]
 
 
-## Groups touching furniture cells into pieces and draws each as props that
-## suit the room (or as procedural blocks when the sprites are missing).
-func _bake_furniture(im: Image) -> void:
+## The face of a wall seen from the room in front of it: plaster with a
+## cornice and skirting, cracks, and hazard stripes in service areas.
+func _bake_facade(im: Image, at: Vector2i, zone: int, rng: RandomNumberGenerator) -> void:
+	var tp := T * B
+	var base := Color(ZONE_WALL[zone])
+	var top := at.y + 5 * B
+	im.fill_rect(Rect2i(at.x, top, tp, tp - 5 * B), base)
+	im.fill_rect(Rect2i(at.x, top, tp, B), base.lightened(0.35)) # cornice
+	im.fill_rect(Rect2i(at.x, top + B, tp, B), base.lightened(0.12))
+	im.fill_rect(Rect2i(at.x, at.y + tp - 2 * B, tp, 2 * B), base.darkened(0.55)) # skirting
+	for i in 5: # stains and chipped plaster
+		var p := Vector2i(at.x + rng.randi_range(0, tp - 2 * B), top + rng.randi_range(2 * B, 7 * B))
+		im.fill_rect(Rect2i(p, Vector2i(rng.randi_range(1, 3) * B, B)), base.darkened(0.3) if i % 2 == 0 else base.lightened(0.15))
+	if rng.randf() < 0.35: # a crack running down the wall
+		var cx := at.x + rng.randi_range(3 * B, tp - 4 * B)
+		for i in 7:
+			im.fill_rect(Rect2i(cx, top + (2 + i) * B, B, B), base.darkened(0.6))
+			cx += rng.randi_range(-1, 1) * B
+	if HAZARD_ZONES.has(zone):
+		for i in 4:
+			im.fill_rect(Rect2i(at.x + i * 4 * B, at.y + tp - 5 * B, 2 * B, 3 * B), Color("f9f002"))
+			im.fill_rect(Rect2i(at.x + i * 4 * B + 2 * B, at.y + tp - 5 * B, 2 * B, 3 * B), Color("1a1026"))
+
+
+## Groups touching furniture cells into pieces and builds one 3/4 sprite per
+## piece from the props sheet. Returns [{tex, pos, glow}], pos being the
+## bottom-left corner of the piece's footprint.
+func _build_props() -> Array:
+	var sheet: Image = Fx.img("props_v2")
+	var out: Array = []
 	var seen := {}
 	var index := 0
 	for y in L.h:
@@ -270,84 +382,68 @@ func _bake_furniture(im: Image) -> void:
 					if not seen.has(nb) and code_at(nb) == Layout.TABLE:
 						seen[nb] = true
 						queue.append(nb)
-			var zone: int = L.zone[y * L.w + x]
-			var prop := _prop_for(zone, box.size.x, box.size.y, piece.size(), index)
+			var names := _prop_for(L.zone[y * L.w + x], box.size.x, box.size.y, piece.size(), index)
 			index += 1
-			var sprite: String = "props/" + prop[0]
-			if not Fx.has_sprite(sprite):
-				_bake_blocks(im, piece, zone)
-			elif piece.size() < box.size.x * box.size.y:
-				# L-shaped piece: one sprite over the whole box, elbow matched.
-				var right := not piece.has(box.position) or not piece.has(box.position + Vector2i(0, box.size.y - 1))
-				var bottom := not piece.has(box.position) or not piece.has(box.position + Vector2i(box.size.x - 1, 0))
-				_stamp(im, sprite, box, right, bottom)
-			else:
-				var fw: int = mini(prop[1], box.size.x)
-				var fh: int = mini(prop[2], box.size.y)
-				for py in range(box.position.y, box.end.y, fh):
-					for px in range(box.position.x, box.end.x, fw):
-						var size := Vector2i(mini(fw, box.end.x - px), mini(fh, box.end.y - py))
-						_stamp(im, sprite, Rect2i(Vector2i(px, py), size), false, false)
+			var first: Array = PropAtlas.PROPS[names[0]]
+			var pos := Vector2(box.position.x, box.end.y) * T
+			var glow: String = {"vat": "5aff7a", "arcade": "05d9e8", "vending": "ff5a8a", "dj": "d300c5"}.get(names[0], "")
+			if Vector2i(first[4], first[5]) == box.size:
+				out.append({"tex": Fx.prop_tex(names[0]), "pos": pos, "glow": glow}) # one object fills the piece
+				continue
+			# Otherwise the piece is assembled cell by cell, back row first so
+			# nearer objects overlap the ones behind.
+			var cell_px := 32
+			var rise := 0
+			for n in names:
+				rise = maxi(rise, int(PropAtlas.PROPS[n][3]) - cell_px)
+			var im := Image.create(box.size.x * cell_px, box.size.y * cell_px + rise, false, Image.FORMAT_RGBA8)
+			piece.sort_custom(func(a, b): return a.y < b.y or (a.y == b.y and a.x < b.x))
+			for c in piece:
+				var local: Vector2i = c - box.position
+				var n: String = names[(local.x + local.y) % names.size()]
+				var r := Fx.prop_rect(n)
+				im.blend_rect(sheet, r, Vector2i(local.x * cell_px, rise + (local.y + 1) * cell_px - r.size.y))
+			out.append({"tex": ImageTexture.create_from_image(im), "pos": pos, "glow": glow})
+	return out
 
 
-## Picks [sprite, width, height] (in cells) for a furniture piece.
+## Props for a furniture piece: one name if a whole object fits its
+## footprint, otherwise single-cell props to repeat (alternating).
 func _prop_for(zone: int, w: int, h: int, count: int, index: int) -> Array:
+	var names: Array = ["crate"]
 	match zone:
-		0: return ["potted_palm", 2, 2]
-		1: return ["dj_booth", 4, 2] if w >= 4 else ["speaker", 2, 2]
-		2:
-			if count == 1: return ["table_cocktail", 1, 1]
-			return ["booth_seat", w, h] if count < w * h else ["sofa_pink", 2, 1]
-		3: return ["stove", 2, 2] if h >= 2 else ["kitchen_counter", 2, 1]
+		0: names = ["arcade"] if index % 2 == 0 else ["vending"]
+		1: names = ["dj"] if w >= 4 else ["speaker"]
+		2: names = ["table"] if count == 1 else ["booth"]
+		3: names = ["stove", "counter"] if h >= 2 else ["counter"]
 		4:
-			if count == 1: return ["bar_stool", 1, 1]
-			return ["bar_counter", 2, 1] if h == 1 else ["sofa_pink", 2, 1]
-		5: return ["toilet_stall", 1, 1] if count == 1 else ["sink", 1, 1]
-		6: return ["crate", 1, 1] if index % 2 == 0 else ["metal_shelf", 2, 2]
-	return ["crate", 1, 1]
-
-
-## Draws a prop sprite over `cells` (a rectangle of map cells).
-func _stamp(im: Image, sprite: String, cells: Rect2i, flip_x: bool, flip_y: bool) -> void:
-	var rect := Rect2i(cells.position * T * B, cells.size * T * B)
-	var p: Image = Fx.img(sprite).duplicate()
-	if flip_x:
-		p.flip_x()
-	if flip_y:
-		p.flip_y()
-	p.resize(rect.size.x, rect.size.y, Image.INTERPOLATE_NEAREST)
-	im.blend_rect(p, Rect2i(Vector2i.ZERO, rect.size), rect.position)
-
-
-func _bake_blocks(im: Image, piece: Array, zone: int) -> void:
-	var f: Array = Fx.FURN[zone]
-	var tp := T * B
-	for c in piece:
-		var at: Vector2i = c * tp
-		im.blit_rect(Fx.scaled("table_%d" % zone, tp), Rect2i(0, 0, tp, tp), at)
-		if not piece.has(c + Vector2i(-1, 0)):
-			im.fill_rect(Rect2i(at.x, at.y, B, tp), Color(f[1]))
-		if not piece.has(c + Vector2i(1, 0)):
-			im.fill_rect(Rect2i(at.x + tp - B, at.y, B, tp), Color(f[1]))
-		if not piece.has(c + Vector2i(0, -1)):
-			im.fill_rect(Rect2i(at.x, at.y, tp, 2 * B), Color(f[2]))
-		if not piece.has(c + Vector2i(0, 1)):
-			im.fill_rect(Rect2i(at.x, at.y + tp - 3 * B, tp, 3 * B), Color(f[1]))
+			if count == 1: names = ["stool"]
+			else: names = ["bar", "bar_bottles"] if h == 1 else ["booth"]
+		5: names = ["toilet"] if count == 1 else ["sink"]
+		6: names = [["vat"], ["barrels"], ["crate"], ["rack"]][index % 4]
+		7: names = ["tape"] if count == 1 else ["chairs"]
+	var first: Array = PropAtlas.PROPS[names[0]]
+	if first[4] * first[5] > 1 and Vector2i(first[4], first[5]) != Vector2i(w, h):
+		return ["crate"] # a large object that does not fit this piece
+	return names
 
 
 func _add_glass(cell: Vector2i) -> void:
 	var b := StaticBody2D.new()
 	b.collision_layer = L_GLASS
 	b.collision_mask = 0
-	b.position = center(cell)
+	b.position = Vector2(cell.x * T + T / 2.0, (cell.y + 1) * T) # sorted by its base
 	b.set_meta("glass", cell)
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
 	rect.size = Vector2(T, T)
 	shape.shape = rect
+	shape.position = Vector2(0, -T / 2.0)
 	b.add_child(shape)
 	var spr := Sprite2D.new()
-	spr.texture = Fx.tex("glass")
+	spr.texture = Fx.prop_tex("glass")
+	spr.scale = Vector2.ONE * PROP_SCALE
+	spr.offset = Vector2(0, -spr.texture.get_height() / 2.0)
 	b.add_child(spr)
 	add_child(b)
 	glass[cell] = b
@@ -430,28 +526,63 @@ func noise(pos: Vector2, radius: float) -> void:
 			e.hear(pos)
 
 
+## Opens a door. A kick (`knock`) blasts it off its hinges: it flies across
+## the room, flooring every zombie in its path. Zombies only push it open.
 func kick_door(i: int, dir: Vector2, knock := true) -> bool:
 	var d: Dictionary = doors[i]
 	if d.open or d.locked:
 		return false
 	d.open = true
 	d.body.collision_layer = 0
-	var s: float
-	if d.vertical:
-		s = -1.0 if dir.x > 0.0 else 1.0
-	else:
-		s = 1.0 if dir.y > 0.0 else -1.0
-	create_tween().tween_property(d.pivot, "rotation", d.pivot.rotation + s * PI * 0.47, 0.12)
 	fx.play("door")
-	fx.add_shake(2.0)
-	if knock:
-		var n := dir.normalized()
-		for e in enemy_list.duplicate():
-			var off: Vector2 = e.global_position - d.center
-			if off.length() < 30.0 and off.dot(n) > -4.0:
-				e.knockdown(n)
-		noise(d.center, 90.0)
+	if not knock:
+		var s: float
+		if d.vertical:
+			s = -1.0 if dir.x > 0.0 else 1.0
+		else:
+			s = 1.0 if dir.y > 0.0 else -1.0
+		create_tween().tween_property(d.pivot, "rotation", d.pivot.rotation + s * PI * 0.47, 0.12)
+		return true
+	# Through the doorway, along the wall's normal.
+	var n := Vector2(signf(dir.x) if dir.x != 0.0 else 1.0, 0) if d.vertical else Vector2(0, signf(dir.y) if dir.y != 0.0 else 1.0)
+	d.pivot.visible = false
+	var slab := Sprite2D.new()
+	slab.texture = Fx.tex("door")
+	slab.position = d.center
+	slab.rotation = d.pivot.rotation
+	add_child(slab)
+	flying.append({"node": slab, "vel": n * 330.0, "life": 0.32, "hit": []})
+	fx.splinters(d.center, n)
+	fx.add_shake(4.0)
+	fx.add_kick(n * 4.0)
+	for e in enemy_list.duplicate():
+		var off: Vector2 = e.global_position - d.center
+		if off.length() < 30.0 and off.dot(n) > -4.0:
+			e.knockdown(n)
+	noise(d.center, 90.0)
 	return true
+
+
+func _physics_process(delta: float) -> void:
+	for f in flying.duplicate():
+		var node: Sprite2D = f.node
+		var step: Vector2 = f.vel * delta
+		f.life -= delta
+		var blocked := solid_at(node.position + step + f.vel.normalized() * 6.0)
+		if not blocked:
+			node.position += step
+			node.rotation += delta * 22.0
+		for e in enemy_list.duplicate():
+			if not f.hit.has(e) and e.global_position.distance_to(node.position) < 18.0:
+				f.hit.append(e)
+				e.knockdown(f.vel.normalized())
+				fx.add_shake(2.0)
+		if blocked or f.life <= 0.0:
+			# It comes to rest as debris on the floor.
+			fx.debris(node.texture, node.position, node.rotation, 1.0)
+			fx.splinters(node.position, -f.vel.normalized())
+			node.queue_free()
+			flying.erase(f)
 
 
 func break_glass(cell: Vector2i) -> void:
@@ -460,7 +591,9 @@ func break_glass(cell: Vector2i) -> void:
 	var b: StaticBody2D = glass[cell]
 	glass.erase(cell)
 	b.collision_layer = 0
-	b.queue_free()
+	# The frame stays, with shards left in it and scattered on the floor.
+	(b.get_child(1) as Sprite2D).texture = Fx.prop_tex("glass_broken")
+	b.z_index = -2
 	astar.set_point_solid(cell, false)
 	fx.shards(center(cell))
 	fx.play("glass")
@@ -503,7 +636,10 @@ func take_pickup(pos: Vector2) -> String:
 
 
 func _process(_delta: float) -> void:
-	var beat := Time.get_ticks_msec() / 250
+	var now := Time.get_ticks_msec()
+	for i in _alarms.size(): # emergency lights strobe, out of step with each other
+		_alarms[i].energy = 1.7 if ((now + i * 370) / 420) % 2 == 0 else 0.25
+	var beat := now / 250
 	if beat != _beat:
 		_beat = beat
 		_overlay.queue_redraw()
@@ -515,8 +651,11 @@ func _draw_neon() -> void:
 	for t in _trims:
 		_neon.draw_rect(t[0], t[1])
 	for s in Layout.COLS * Layout.ROWS:
-		var at := _chunk_origin(s) + Vector2(6, -4)
-		var text: String = Fx.ROOM_NAMES[_chunk_zone(s)]
+		var zone := _chunk_zone(s)
+		if ZONE_SIGN.has(zone):
+			continue # this room has a neon sign sprite instead
+		var at := _chunk_origin(s) + Vector2(6, -5)
+		var text: String = Fx.ROOM_NAMES[zone]
 		var col: Color = Fx.PINK if s % 2 == 0 else Fx.CYAN
 		# Text is drawn at 4x size and scaled down so it stays sharp when zoomed.
 		var width := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x / 4.0

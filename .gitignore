@@ -5,3 +5,6 @@ web/
 # Firebase
 .firebase/
 firebase-debug.log
+
+# Python
+__pycache__/
