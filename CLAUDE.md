@@ -73,9 +73,13 @@ Rules:
 - Base canvas 1920x1080, stretch `canvas_items` + `expand`: wider phones (20:9, 21:9) get more width, never bars.
 - World units are unchanged (16px tiles); `Camera2D` zoom is 3.6. The floor is baked at 3 texture pixels per world
   pixel. Text drawn in the world is drawn at 4x size and scaled down to stay sharp.
-- HUD and touch controls are laid out in units (screen is 360 units tall, `W` units wide) and anchored from `W`;
-  never use fixed pixel positions there.
-- `web_template/custom_shell.html` is the export shell (Godot's default plus the fullscreen button and PWA tags).
+- Portrait and landscape are both supported. HUD and touch controls are laid out in units (the SHORT screen side
+  is 360 units; `W` x `H` units overall) by `Hud.layout()` / `Controls.layout()` and anchored to the corners; never
+  use fixed pixel positions there. The smoke test checks both layouts for overlap on several screen shapes.
+- The camera zoom also follows the short side, so both orientations show the same amount of room.
+- Touch scheme: MOVE stick (left), HIT/FIRE (hold to attack, drag to aim, otherwise auto-aim), KICK/EXEC, DASH.
+- `web_template/custom_shell.html` is the export shell (Godot's default plus the fullscreen toggle, which is sized
+  in the same units and sits in the slot `Hud.layout()` keeps free top-right, and PWA tags).
   `manifest.webmanifest` and the icons are copied into `web/` by CI after the export; do the same locally.
 
 ## Project layout

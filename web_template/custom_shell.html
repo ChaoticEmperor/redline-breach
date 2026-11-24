@@ -96,19 +96,23 @@ body {
 		<meta name="apple-mobile-web-app-capable" content="yes">
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 		<style>
+/* Sized in the game's HUD units (short screen side = 360) so it sits exactly
+   in the slot the HUD keeps free in its top-right corner. */
 #fullscreen-btn {
+	--u: calc(min(100vw, 100vh) / 360);
 	position: fixed;
-	top: max(10px, env(safe-area-inset-top));
-	right: max(10px, env(safe-area-inset-right));
+	top: calc(8 * var(--u));
+	right: calc(8 * var(--u));
 	z-index: 10;
-	padding: 8px 12px;
-	font: bold 13px/1 monospace;
-	letter-spacing: 1px;
+	width: calc(26 * var(--u));
+	height: calc(26 * var(--u));
+	padding: 0;
+	font: bold calc(15 * var(--u)) / 1 monospace;
 	color: #05d9e8;
-	background: rgba(10, 6, 18, 0.85);
-	border: 2px solid #ff2a6d;
-	border-radius: 4px;
-	box-shadow: 0 0 10px rgba(255, 42, 109, 0.7);
+	background: rgba(10, 6, 18, 0.8);
+	border: calc(1.5 * var(--u)) solid #05d9e8;
+	border-radius: calc(3 * var(--u));
+	box-shadow: 0 0 calc(5 * var(--u)) rgba(5, 217, 232, 0.6);
 	cursor: pointer;
 	touch-action: manipulation;
 	-webkit-tap-highlight-color: transparent;
@@ -118,26 +122,28 @@ body {
 		$GODOT_HEAD_INCLUDE
 	</head>
 	<body>
-		<button id="fullscreen-btn" type="button" hidden>[ &#x26F6; FULLSCREEN ]</button>
+		<button id="fullscreen-btn" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen" hidden>&#x26F6;</button>
 		<script>
 (function () {
 	const btn = document.getElementById('fullscreen-btn');
 	const root = document.documentElement;
 	const request = root.requestFullscreen || root.webkitRequestFullscreen;
+	const exit = document.exitFullscreen || document.webkitExitFullscreen;
 	const installed = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
 	if (!request || installed) {
 		return; // iPhone Safari has no fullscreen API: use "Add to Home Screen" there
 	}
 	const active = () => Boolean(document.fullscreenElement || document.webkitFullscreenElement);
-	const sync = () => { btn.hidden = active(); };
+	const sync = () => { btn.innerHTML = active() ? '&#x2715;' : '&#x26F6;'; };
 	btn.addEventListener('click', async () => {
 		try {
-			await request.call(root, { navigationUI: 'hide' });
-			if (screen.orientation && screen.orientation.lock) {
-				await screen.orientation.lock('landscape');
+			if (active()) {
+				await exit.call(document);
+			} else {
+				await request.call(root, { navigationUI: 'hide' });
 			}
 		} catch (err) {
-			// orientation lock is unsupported on desktop; fullscreen alone is fine
+			// a refused request leaves the page as it was
 		}
 		const canvas = document.getElementById('canvas');
 		if (canvas) {
@@ -146,6 +152,7 @@ body {
 	});
 	document.addEventListener('fullscreenchange', sync);
 	document.addEventListener('webkitfullscreenchange', sync);
+	btn.hidden = false;
 	sync();
 }());
 		</script>

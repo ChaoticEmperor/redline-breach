@@ -83,6 +83,30 @@ func _run() -> void:
 		ok(good, "seed %d: deterministic, connected, %d zombies, %d doors" % [s, L.zombies.size(), L.doors.size()])
 	ok(Layout.generate(1).sig != Layout.generate(2).sig, "different seeds differ")
 
+	print("== ui layout ==")
+	var Hud = load("res://scripts/hud.gd")
+	var Controls = load("res://scripts/controls.gd")
+	for sz in [Vector2(640, 360), Vector2(800, 360), Vector2(520, 360), Vector2(360, 480), Vector2(360, 640), Vector2(360, 800)]:
+		var screen := Rect2(Vector2.ZERO, sz)
+		var hud: Dictionary = Hud.layout(sz.x, sz.y)
+		var fine := true
+		var keys: Array = hud.keys()
+		for i in keys.size():
+			fine = fine and screen.encloses(hud[keys[i]])
+			for j in range(i + 1, keys.size()):
+				fine = fine and not (hud[keys[i]] as Rect2).intersects(hud[keys[j]])
+		var pad: Dictionary = Controls.layout(sz.x, sz.y)
+		var radius := {"stick": Controls.STICK_R, "fire": Controls.FIRE_R, "kick": Controls.BTN_R, "dash": Controls.BTN_R}
+		keys = pad.keys()
+		for i in keys.size():
+			var c: Vector2 = pad[keys[i]]
+			var r: float = radius[keys[i]]
+			fine = fine and screen.encloses(Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0))
+			fine = fine and c.y - r > 80.0 # clear of the top HUD rows
+			for j in range(i + 1, keys.size()):
+				fine = fine and c.distance_to(pad[keys[j]]) > r + radius[keys[j]]
+		ok(fine, "%dx%d: HUD panels and touch buttons fit without overlapping" % [sz.x, sz.y])
+
 	print("== game ==")
 	main = load("res://main.tscn").instantiate()
 	root.add_child(main)
