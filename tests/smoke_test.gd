@@ -128,12 +128,14 @@ func _run() -> void:
 	if p.grips:
 		ok(is_equal_approx(p.wep.scale.x, p.body.scale.x) and p.wep.modulate == p.body.modulate and p.wep.light_mask == p.body.light_mask,
 			"held weapon shares the body's pixel size, tint and light layer")
-		ok(p.hand.get_index() > p.arm.get_index() and p.arm.get_index() > p.body.get_index(), "draw order is body, weapon, hand")
+		ok(p.hand.get_index() > p.wep.get_index() and p.wep.get_index() > p.body.get_index(), "draw order is body, weapon, hand")
+		ok(p.wep.rotation == 0.0 and p.wep.hframes == Fx.HELD_DIRS and p.wep.get_parent() == p,
+			"the held weapon shows a pre-drawn direction and is never rotated")
 		var fist: Vector2 = Fx.hand_anchors()[p.hand.frame]
 		var want: Vector2 = Vector2(floorf(fist.x) + 0.5 - p.art.cell / 2.0, floorf(fist.y) + 0.5 - p.art.feet) * p.art.scale
 		if p.body.flip_h:
 			want.x = -want.x
-		ok(p.hand.visible and p.hand.frame == Fx.PLAYER_V3[p.body.animation][0] + p.body.frame and p.arm.position.distance_to(want) < 0.01,
+		ok(p.hand.visible and p.hand.frame == Fx.PLAYER_V3[p.body.animation][0] + p.body.frame and p.wep.position.distance_to(want) < 0.01,
 			"the weapon sits in the fist of the frame being shown")
 	ok(not p.grips or is_equal_approx(Fx.PX, p.art.scale), "effects are drawn at the player's art pixel size")
 	var lit: Color = w._unlit * w.AMBIENT
@@ -171,6 +173,9 @@ func _run() -> void:
 	await frames(6)
 	c.fire = false
 	ok(_awake() == awake, "pipe swing is silent")
+	if p.grips:
+		var off: Vector2 = (p.wep.position - p.hold) / p.art.scale
+		ok(p.wep.rotation == 0.0 and off.distance_to(off.round()) < 0.01, "the weapon stays unrotated and on whole art pixels through a swing")
 	await frames(25)
 	p.give("pistol")
 	var rounds: int = p.ammo.pistol
@@ -199,7 +204,7 @@ func _run() -> void:
 		t += 1
 	ok(not p.alive and main.state == "dead", "unanswered grab kills (~%.2fs)" % (t / 60.0))
 	ok(p.body.animation == "death", "death animation plays")
-	ok(not p.arm.visible and (p.hand == null or not p.hand.visible), "weapon and fist are hidden on the floor")
+	ok(not p.wep.visible and (p.hand == null or not p.hand.visible), "weapon and fist are hidden on the floor")
 	ok(t >= 18 and t <= 30, "escape window is about 0.4s")
 
 	# Instant restart on the same seed.

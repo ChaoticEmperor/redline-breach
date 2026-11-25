@@ -39,8 +39,13 @@ const SPRITES := {
 	# Held weapons at the player sheet's pixel size and palette (tools/draw_weapons.py).
 	"held_pipe": "weapons/held_pipe", "held_pistol": "weapons/held_pistol", "held_shotgun": "weapons/held_shotgun",
 }
-## Pixel of each held weapon that sits in the fist. Keep in step with HELD in tools/draw_weapons.py.
-const HELD_GRIP := {"pipe": Vector2(4, 3), "pistol": Vector2(3, 6), "shotgun": Vector2(10, 6)}
+## Held weapon sheets: HELD_DIRS cells of HELD_CELL pixels, one per aim direction (cell i points
+## i x 22.5 degrees clockwise from right), the grip pixel at the centre pixel of each cell.
+## HELD_REACH is how far the muzzle or tip is from the grip, in sheet pixels.
+## Keep in step with HELD_* in tools/draw_weapons.py.
+const HELD_DIRS := 16
+const HELD_CELL := 64
+const HELD_REACH := {"pipe": 27.0, "pistol": 12.0, "shotgun": 24.0}
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
 const ROOMS_Y := 3

@@ -82,7 +82,8 @@ For fusing two or more sprites, props, characters or backgrounds into one image 
 * **One pixel size**: Before compositing, compute each asset's on-screen pixel size (`sheet pixels per world pixel` x `draw scale` x `camera zoom`). They must be equal. If they differ, re-export or redraw the smaller-budget asset at the shared resolution; do not scale one to fit.
 * **Integer scaling only**: Any resize is nearest-neighbour at a whole-number factor. A non-integer factor makes neighbouring art pixels alternate widths and breaks every outline it touches.
 * **Same grid**: Place parts at integer pixel offsets on a shared 1x grid. A half-pixel offset shows as a doubled or missing row at the join.
-* **Rotation**: Free rotation of a part (a weapon arm) leaves the grid by definition. Either author the needed angles (8 or 16 directions) on the grid, or accept runtime rotation only for parts drawn at the same pixel size as the body and keep them small.
+* **Rotation**: Free rotation of a part (a weapon arm) leaves the grid by definition, and it shows: the part's pixels turn into slanted, uneven blocks next to a body whose pixels are square. Pre-draw the part at 8 or 16 directions on the grid (turn the master at 8x size, then vote each pixel back down so colours stay on the palette and one-pixel outlines stay whole; mirror the master for the far side so the lit edge stays on top) and show the nearest direction. Runtime rotation of a sprite is a placeholder, not a finish.
+* **Sockets, not eyeballing**: Join two parts by coordinates. Record a socket per body frame (the fist's centre pixel) and one grip pixel per held part, place the part so grip equals socket, and move it only in whole art pixels (recoil included). Have the build check that the grip pixel is filled in every direction.
 * **Check**: Zoom to 1x and count: a one-pixel line in each asset must be the same number of screen pixels wide.
 
 ### 9.2 Depth Ordering, Occlusion & Contact
