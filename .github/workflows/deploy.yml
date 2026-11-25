@@ -25,10 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Read Godot version
+        # One pin for CI and the cloud session-start hook: .godot-version.
+        id: godot
+        run: echo "version=$(tr -d '[:space:]' < .godot-version)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.7.2
+          version: ${{ steps.godot.outputs.version }}
           use-dotnet: false
           include-templates: true
 

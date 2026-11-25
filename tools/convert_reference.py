@@ -36,10 +36,11 @@ try:
     import numpy as np
     from PIL import Image
 except ImportError:  # pragma: no cover
-    print("convert_reference: needs numpy and Pillow; nothing converted.")
-    sys.exit(0)
+    from _deps import skip
+    sys.exit(skip("convert_reference: needs numpy and Pillow; nothing converted."))
 
 from _atelier import ROOT, atelier_binary
+from _deps import skip
 
 SPEC = {
     "source": ROOT / "assets" / "raw" / "player_reference.png",
@@ -266,8 +267,7 @@ def make_caller(binary):
 def main() -> int:
     binary = atelier_binary()
     if binary is None or not SPEC["source"].exists():
-        print("convert_reference: atelier or the reference is missing; nothing converted, game falls back")
-        return 0
+        return skip("convert_reference: atelier or the reference is missing; nothing converted, game falls back")
     src_img = Image.open(SPEC["source"]).convert("RGB")
     src = np.asarray(src_img).astype(float)
     y0, y1 = SPEC["rows"]

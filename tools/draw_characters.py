@@ -35,6 +35,7 @@ import math
 import sys
 
 from _atelier import K, ROOT, Canvas, atelier_binary, ink, paint, ramp
+from _deps import skip
 
 CELL = 64
 FEET = 60
@@ -437,8 +438,7 @@ def riot_row(cv):
 def main() -> int:
     binary = atelier_binary()
     if binary is None:
-        print("draw_characters: atelier is not installed; nothing drawn, game falls back")
-        return 0
+        return skip("draw_characters: atelier is not installed; nothing drawn, game falls back")
     sheet = Canvas(CELL * 15, CELL * 6)
     rows = [player_row,
             lambda cv: zombie_row(cv, "shambler", SHUFFLE, 2, (1.5, 1.5), 14),

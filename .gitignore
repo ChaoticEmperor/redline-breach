@@ -15,3 +15,6 @@ screenshots/
 
 # Scratch checkouts made by Claude Code subagents
 .claude/worktrees/
+
+# Backups Atelier leaves when tools/refresh_atelier_skills.sh reinstalls its skills
+*.atelier-backup

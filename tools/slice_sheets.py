@@ -23,8 +23,8 @@ from pathlib import Path
 try:
     from PIL import Image, ImageChops, ImageFilter
 except ImportError:  # pragma: no cover
-    print("slice_sheets: Pillow is not installed (pip install Pillow); nothing sliced.")
-    sys.exit(0)
+    from _deps import skip
+    sys.exit(skip("slice_sheets: Pillow is not installed (pip install Pillow); nothing sliced."))
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "assets" / "raw"

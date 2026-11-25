@@ -35,6 +35,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from _deps import skip
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "sprites" / "weapons"
 
@@ -230,8 +232,11 @@ def call(binary: str, env: dict, tool: str, args: dict) -> dict:
 def main() -> int:
     binary = shutil.which("atelier") or str(Path.home() / ".local" / "bin" / "atelier")
     if not Path(binary).exists():
-        print("draw_weapons: atelier is not installed; nothing drawn, game falls back")
-        return 0
+        return skip("draw_weapons: atelier is not installed; nothing drawn, game falls back")
+    try:
+        import numpy  # noqa: F401  (the held-weapon turn needs it)
+    except ImportError:
+        return skip("draw_weapons: numpy is not installed (pip install numpy); nothing drawn, game falls back")
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as home:
         env = dict(os.environ, ATELIER_HOME=home)  # keep the user's own library untouched
