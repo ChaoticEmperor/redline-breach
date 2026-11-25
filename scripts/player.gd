@@ -12,6 +12,8 @@ const World = preload("res://scripts/world.gd")
 
 const SPEED := 112.0
 const ACCEL := 1120.0 # reaches SPEED, and stops from it, in 0.1s (6 frames)
+const SWING_TIME := 0.24 # a pipe swing, start to ready again
+const SWING_ARC := 1.4 # how far to each side of the aim it sweeps, radians
 const NUDGE := 6.0 # how far a blocked player is slid sideways to round a corner
 const DASH_SPEED := 340.0
 const DASH_TIME := 0.14
@@ -174,7 +176,7 @@ func _process(delta: float) -> void:
 	var swing := 0.0
 	if swing_t > 0.0:
 		swing_t -= delta
-		swing = lerpf(1.4, -1.4, clampf(swing_t / 0.16, 0.0, 1.0)) * (-1.0 if aim.x < 0.0 else 1.0)
+		swing = swing_angle(1.0 - swing_t / SWING_TIME) * (-1.0 if aim.x < 0.0 else 1.0)
 	if grips:
 		wep.frame = shown_dir(swing)
 		_layer(BACK_DIRS.has(wep.frame))
@@ -338,6 +340,18 @@ func _round_corner(mv: Vector2, delta: float) -> void:
 				return
 
 
+## Where the pipe is in a swing, as an angle off the aim, for `t` from 0 to 1.
+## A swing is not an even sweep: it strikes fast (the whole arc in the first
+## third), holds at full extension so the blow reads, then returns to ready
+## more slowly.
+static func swing_angle(t: float) -> float:
+	if t < 0.3:
+		return lerpf(-SWING_ARC, SWING_ARC, 1.0 - pow(1.0 - t / 0.3, 2.0))
+	if t < 0.5:
+		return SWING_ARC
+	return lerpf(SWING_ARC, 0.0, smoothstep(0.5, 1.0, t))
+
+
 # ---------------------------------------------------------------- weapons
 
 func give(kind: String) -> void:
@@ -437,7 +451,7 @@ func _bullet(muzzle: Vector2, dir: Vector2, reach: float, dmg: int) -> void:
 
 
 func _swing() -> void:
-	swing_t = 0.16
+	swing_t = SWING_TIME
 	fx.play("swing")
 	fx.slash(global_position + hold, aim.angle())
 	var landed := false

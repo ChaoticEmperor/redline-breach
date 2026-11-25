@@ -195,8 +195,10 @@ tools/run_polisher.sh after         # same again; the brief gains a Before colum
 ## Gameplay design
 
 Load the `gameplay-craft` skill before changing combat, enemies, noise, weapons, scoring, the HUD or menus, the
-camera or level pacing. It holds the design principles we work from, REDLINE's status against each, and the
-build order. Rebuild ideas in our own way; never copy another game's code, art, sound, text or levels.
+camera or level pacing, and before sizing or animating a new asset: its section 9 is the scale and animation
+baseline (sizes against a tile or a body, frames per kind of motion). It holds the design principles we work from,
+REDLINE's status against each, and the build order. Rebuild ideas in our own way; never copy another game's code,
+art, sound, text or levels. Another game's sprites may be measured, never traced, recoloured or committed.
 
 ## Conventions
 

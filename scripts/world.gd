@@ -21,6 +21,7 @@ const PROP_SCALE := 0.5 # props sheet pixels -> world pixels (32 per cell)
 const CAP := 8.0 # how far a wall's top edge rises over the floor behind it
 const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("ff2a80"), Color("ff2a9d")]
 const DANCE_ALPHA := 0.42 # strength of the additive tile pulse
+const PICKUP_SCALE := 1.0 / 3.0 # floor weapon art -> world pixels: the player sheet's pixel size
 const LIGHT_SPREAD := 3.2 # room light radius (Fx.LIGHTS, px) -> light texture scale, over 64
 # How far above the floor lights are (px). Only normal-mapped props use it: a low light shades them
 # strongly but darkens them, a high one is close to the flat look. 160 keeps tops readable.
@@ -139,7 +140,9 @@ func build(layout: Dictionary) -> void:
 		var spr := Sprite2D.new()
 		spr.texture = Fx.tex("w_" + p.kind)
 		spr.position = center(p.cell)
-		spr.scale = Vector2.ONE * 1.5 * Fx.sprite_scale("w_" + p.kind)
+		# Drawn art is shown at the player's pixel size (whole screen pixels), which also puts a
+		# weapon on the floor at about half a tile (pistol) to one tile (pipe, shotgun) long.
+		spr.scale = Vector2.ONE * (PICKUP_SCALE if Fx.has_sprite("w_" + p.kind) else 1.5)
 		spr.z_index = -1
 		add_child(spr)
 		pickups.append({"kind": p.kind, "pos": spr.position, "node": spr})
