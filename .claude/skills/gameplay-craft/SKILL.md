@@ -14,7 +14,8 @@ description: >
 
 These are principles, not a recipe. Each one says what it is for, so you can
 judge when it applies. They were learned by reading how a celebrated game in
-this genre is put together, then rewritten in our own words. **Never copy
+this genre is put together, then rewritten in our own words. A second study
+(an MIT-licensed Godot action RPG) added the rules marked *(study 2)*. **Never copy
 another game's code, numbers-as-a-set, art, sound, text or levels.** Take the
 idea, rebuild it for REDLINE, then measure it.
 
@@ -26,7 +27,8 @@ idea, rebuild it for REDLINE, then measure it.
    mean (`NOISE_DRAWS`, not `3`).
 3. Prove it twice:
    - **Smoke test** (`tests/smoke_test.gd`): an assertion of the rule itself
-     ("a shot draws at most N infected").
+     ("a shot draws at most N infected"). Break the code on purpose once and
+     watch the assertion go red before you trust it green *(study 2)*.
    - **Play-test bot** (`tools/playbot.gd`, needs a display, `xvfb-run -a` in
      the cloud): play 150s on seed 1989 before and after; compare deaths,
      causes of death, kills and floor time from `playbot_log.txt`. Save the
@@ -67,8 +69,16 @@ The player must always be able to say why they died.
   also wait a random moment before their first shot. *Done (`NOTICE`, "!").*
 - **Danger must be readable before it lands.** Anything that kills in an area
   (an explosion, a burst) shows its reach and its timer while there is still
-  time to step out. *REDLINE: the bloater fuse is 0.45s with only a swell and
-  a sound — the main cause of play-test deaths. Open (feature 1).*
+  time to step out. *REDLINE: done — the bloater's fuse draws a ring at the
+  exact blast reach plus a ring closing on the centre (`Fx.warn`).*
+- **Warning time is a budget, not a feel:** reaction time (about 0.25s) plus
+  the time to walk from the worst spot to safety. If a danger needs more
+  travel, give it a longer warning, not a smaller area *(study 2)*. *REDLINE:
+  `FUSE_TIME >= REACTION + BLAST / SPEED`, asserted.*
+- **The warning stays where it was painted.** A marker that follows its source
+  is a delayed guaranteed hit *(study 2)*.
+- **One warning at a time near the player.** Overlapping telegraphs are
+  unreadable; stagger chain reactions so each one reads *(study 2)*. Open.
 - **Noise draws a few, not all.** A gunshot alerts only the nearest few
   enemies in earshot, and sends each to a scattered spot near the sound, not
   the exact pixel. One shot should not pull the whole floor into one doorway.
@@ -136,12 +146,17 @@ The player must always be able to say why they died.
 
 ## 8. Build order for REDLINE
 
-1. Bloater fuse warning (readable danger, section 2).
+1. Bloater fuse warning (readable danger, section 2). *Done.*
 2. Noise draws the nearest few, to scattered spots (section 2).
 3. Throwable empty guns (section 3).
 4. Floor-clear grade screen (section 4).
 5. Longer combo window and varied knockdown time (sections 4 and 5).
 
-Then: boldness bonus, easing hit-stop in chains, look-far key, corpse poses
+Then: fail the smoke test on any runtime SCRIPT ERROR (a logger that counts
+them; today a runtime error prints and the test still passes) *(study 2)*,
+a white hit flash on the infected (a flash shader on the body; `modulate` can
+only darken) and warm that shader at floor build so the web build does not
+stall on the first hit *(study 2)*, staggered chain-reaction fuses,
+boldness bonus, easing hit-stop in chains, look-far key, corpse poses
 by kill type, animation speed from velocity, menu text effects, chapter frame.
 Update the status lines above when one lands.

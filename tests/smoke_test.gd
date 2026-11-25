@@ -374,7 +374,9 @@ func _run() -> void:
 	var b = _pick(["bloater"])
 	b.hit(99, Vector2.RIGHT)
 	ok(b.state == Enemy.FUSE, "bloater swells instead of dropping")
-	await frames(40)
+	ok(main.world.fx.warns.any(func(x): return x[0] == b and x[1] == b.global_position and x[2] == Enemy.BLAST), "a lit fuse marks its blast zone on the floor, where it was lit")
+	ok(Enemy.FUSE_TIME >= Enemy.REACTION + Enemy.BLAST / p.SPEED, "the fuse leaves time to react, then walk out of the blast (%.2fs of %.2fs needed)" % [Enemy.FUSE_TIME, Enemy.REACTION + Enemy.BLAST / p.SPEED])
+	await frames(int(Enemy.FUSE_TIME * 60.0) + 6)
 	ok(not is_instance_valid(b) or b.dead, "bloater explodes")
 	for i in 6:
 		for z in w.enemy_list.duplicate():
