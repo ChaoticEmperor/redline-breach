@@ -185,6 +185,10 @@ invalidates the ones below it.
 5. **Detail, only where it earns attention.** Detail everywhere is detail nowhere. Put it on the focal area
    and leave the rest in clean forms.
 
+When one asset is combined with another (a weapon in the player's hand, a prop on a counter, a character
+over a floor), follow `pixel-art-engineer` section 9, "Clean Asset Merging & Compositing": same pixel size,
+written draw order with the holder overlapping what it holds, shared light and outline style, clean seams.
+
 Checklist from `pixel-art-engineer` to run on every sprite before it is wired in:
 
 - lines: no stray single pixels, no mixed staircase steps on a diagonal or curve;

@@ -67,3 +67,43 @@ These were learned by converting a generated reference sheet into the game's pla
 * **Strip What the Engine Draws**: Remove a baked ground shadow and backdrop. Keep dark outline pixels that touch colour, close one-pixel gaps in the outline, and fill whatever is sealed inside it. Expect to rebuild by hand the parts that fade into the shadow (a far foot, a trailing hand).
 * **Passing Checks Is Not Approval**: Automated critique measures hygiene (stray pixels, palette discipline, contrast, light direction). A sheet passed every one of those and was still rejected. Show the result to the person and compare it with the reference before calling it done.
 
+## 9. Clean Asset Merging & Compositing
+For fusing two or more sprites, props, characters or backgrounds into one image or one on-screen object (a weapon in a hand, a rider on a mount, a prop on a table, a character on a background). A merge is finished when the parts read as one drawing, not as one drawing laid over another. Work through the four checks in order; a failure in an earlier one makes the later ones pointless.
+
+### 9.1 Pixel-Grid & Scale Alignment
+* **One pixel size**: Before compositing, compute each asset's on-screen pixel size (`sheet pixels per world pixel` x `draw scale` x `camera zoom`). They must be equal. If they differ, re-export or redraw the smaller-budget asset at the shared resolution; do not scale one to fit.
+* **Integer scaling only**: Any resize is nearest-neighbour at a whole-number factor. A non-integer factor makes neighbouring art pixels alternate widths and breaks every outline it touches.
+* **Same grid**: Place parts at integer pixel offsets on a shared 1x grid. A half-pixel offset shows as a doubled or missing row at the join.
+* **Rotation**: Free rotation of a part (a weapon arm) leaves the grid by definition. Either author the needed angles (8 or 16 directions) on the grid, or accept runtime rotation only for parts drawn at the same pixel size as the body and keep them small.
+* **Check**: Zoom to 1x and count: a one-pixel line in each asset must be the same number of screen pixels wide.
+
+### 9.2 Depth Ordering, Occlusion & Contact
+* **State the order first**: Write the front-to-back stack before drawing, part by part (for a held item: far arm, body, item, near hand and sleeve). Decide what changes with facing or aim (an item passes behind the body when aimed away from the viewer).
+* **Grip, do not overlay**: Whatever holds something is drawn over it. A hand or sleeve must cover part of the grip; an item drawn wholly on top of the body reads as floating. If the body art has no gripping hand, add one (a pose, or a separate hand layer drawn above the item).
+* **Erase what is hidden**: Where one shape covers another, remove the covered shape's outline and interior lines inside the overlap. Outlines showing through are the clearest sign of a paste.
+* **Anchor it**: Give each join a contact cue: a one or two pixel contact shadow in the darker ramp step of the surface underneath, a pressed or overlapped pixel where a hand closes, feet that share a ground line and a shadow. Darken the shadow nearest the contact and let it fade with distance.
+* **Background occlusion**: Terrain and props in front of a character cover it up to their own outline; keep the sort line at the object's base so the overlap is consistent while it moves.
+* **Check**: Hide each part in turn. If nothing about the neighbouring parts changes, that part is pasted on, not integrated.
+
+### 9.3 Unified Light, Ambient & Palette Harmony
+* **One light direction**: All merged parts are lit from the same side. Flip or re-shade any part whose highlight sits on the other side; a mirrored sprite carries its lighting with it.
+* **One set of ramps**: Re-map each part onto the shared palette. The same material uses the same ramp everywhere, shadows shift hue the same way in every part, and no part keeps a private near-duplicate of a colour that already exists.
+* **Shared ambient**: Apply coloured or ambient light to every part of the merged object equally. If a light cone, neon wash or tint reaches the body, it reaches what the body holds; mismatched brightness or tint between a character and its item separates them at once.
+* **One outline style**: Pick no outline, black inline, black contour, coloured outline or selective outline for the whole composite and convert the odd part out. Match outline weight too: a one-pixel contour next to a two-pixel one never reads as one object.
+* **Matched contrast and detail**: Bring value range and detail density into line. A flat, low-detail item on a richly shaded body (or the reverse) looks like a different drawing regardless of colour.
+* **Check**: View the composite in greyscale and as a palette list. Parts should not be separable by overall brightness, and the colour count should not have grown by the full palette of the added part.
+
+### 9.4 Seam, Staircase & Edge Cleanup
+* **No double borders**: Where two outlined shapes meet, keep one outline, not two side by side. Decide which shape owns the edge (normally the one in front).
+* **No gaps**: Fill transparent slivers between parts that should touch, and remove stray background pixels trapped at the join.
+* **Repair the lines**: Re-step any diagonal or curve the merge cut across so its staircase is regular again, and delete lone pixels left at the seam.
+* **No banding at the join**: Shading rows from two parts must not line up into parallel bands along the seam; break them by shifting one ramp step.
+* **Animation**: Check the join on every frame. An item must keep its offset to the hand through the cycle, or it will swim against the body.
+* **Verify four ways**: at 1x (100%), flipped horizontally, on a neutral grey background, and zoomed out or blurred. The join should not be findable in any of them.
+
+### 9.5 Merge Checklist
+1. Same on-screen pixel size, integer scale, shared grid.
+2. Draw order written down; holder overlaps held; hidden lines erased; contact shadow or anchor pixels present.
+3. Same light direction, shared ramps and ambient, one outline style and weight, matched contrast.
+4. No double borders, gaps, lone pixels, broken staircases or banding at the seam; passes 1x, flipped, neutral background and zoomed out; holds on every animation frame.
+
