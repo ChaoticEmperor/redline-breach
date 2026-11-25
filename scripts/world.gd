@@ -22,6 +22,10 @@ const CAP := 8.0 # how far a wall's top edge rises over the floor behind it
 const DANCE_COLORS := [Color("ff2a6d"), Color("05d9e8"), Color("ff2a80"), Color("ff2a9d")]
 const DANCE_ALPHA := 0.42 # strength of the additive tile pulse
 const LIGHT_SPREAD := 3.2 # room light radius (Fx.LIGHTS, px) -> light texture scale, over 64
+# How far above the floor lights are (px). Only normal-mapped props use it: a low light shades them
+# strongly but darkens them, a high one is close to the flat look. 160 keeps tops readable.
+const LIGHT_HEIGHT := 160.0
+const HAND_LIGHT_HEIGHT := 24.0 # the player's flashlight, body light and muzzle flash
 # zone index -> floor sprite in assets/sprites/floors/
 const ZONE_FLOOR := ["concrete", "dancefloor", "vip_carpet", "kitchen_tile", "bar_planks",
 	"restroom_tile", "concrete", "corridor_carpet", "elevator_steel"]
@@ -236,6 +240,7 @@ func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> PointLi
 	light.texture_scale = size
 	light.color = col
 	light.energy = energy
+	light.height = LIGHT_HEIGHT
 	add_child(light)
 	return light
 
@@ -373,6 +378,7 @@ func _bake_facade(im: Image, at: Vector2i, zone: int, rng: RandomNumberGenerator
 ## bottom-left corner of the piece's footprint.
 func _build_props() -> Array:
 	var sheet: Image = Fx.img("props_v2")
+	var normals: Image = Fx.img("props_v2_n") if Fx.prop_normals() else null
 	var out: Array = []
 	var seen := {}
 	var index := 0
@@ -409,13 +415,18 @@ func _build_props() -> Array:
 			for n in names:
 				rise = maxi(rise, int(PropAtlas.PROPS[n][3]) - cell_px)
 			var im := Image.create(box.size.x * cell_px, box.size.y * cell_px + rise, false, Image.FORMAT_RGBA8)
+			var nm: Image = Image.create(im.get_width(), im.get_height(), false, Image.FORMAT_RGBA8) if normals else null
 			piece.sort_custom(func(a, b): return a.y < b.y or (a.y == b.y and a.x < b.x))
 			for c in piece:
 				var local: Vector2i = c - box.position
 				var n: String = names[(local.x + local.y) % names.size()]
 				var r := Fx.prop_rect(n)
-				im.blend_rect(sheet, r, Vector2i(local.x * cell_px, rise + (local.y + 1) * cell_px - r.size.y))
-			out.append({"tex": ImageTexture.create_from_image(im), "pos": pos, "glow": glow})
+				var at := Vector2i(local.x * cell_px, rise + (local.y + 1) * cell_px - r.size.y)
+				im.blend_rect(sheet, r, at)
+				if nm:
+					nm.blend_rect(normals, r, at)
+			var t := ImageTexture.create_from_image(im)
+			out.append({"tex": Fx.lit(t, ImageTexture.create_from_image(nm) if nm else null), "pos": pos, "glow": glow})
 	return out
 
 

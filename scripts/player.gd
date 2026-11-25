@@ -117,12 +117,14 @@ func setup(p_main, p_world, p_controls) -> void:
 	beam.texture_scale = 2.6
 	beam.color = Color("fff2d0")
 	beam.energy = 1.6
+	beam.height = World.HAND_LIGHT_HEIGHT
 	arm.add_child(beam)
 	var pool := PointLight2D.new()
 	pool.texture = Fx.tex("light")
 	pool.texture_scale = 1.8
 	pool.color = Color("ffd6f2")
 	pool.energy = 1.0
+	pool.height = World.HAND_LIGHT_HEIGHT
 	pool.position = shoulder
 	add_child(pool)
 	muzzle_light = PointLight2D.new()
@@ -130,6 +132,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	muzzle_light.texture_scale = 4.5
 	muzzle_light.color = Color("ffc060")
 	muzzle_light.energy = 0.0
+	muzzle_light.height = World.HAND_LIGHT_HEIGHT
 	muzzle_light.range_item_cull_mask = 3 # a shot lights the actors as well as the room
 	muzzle_light.position = shoulder
 	add_child(muzzle_light)

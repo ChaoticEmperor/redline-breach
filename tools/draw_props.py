@@ -11,19 +11,24 @@ is placed with its bottom edge on the bottom of its footprint.
 
 Outputs:
   assets/sprites/props/sheet_props_v2.png   all props packed into one atlas
+  assets/sprites/props/sheet_props_v2_n.png its normal map, same layout (needs Pillow, not Atelier)
   scripts/prop_atlas.gd                     generated table of where each is
 
-Exits 0 if Atelier is missing (the game falls back to flat blocks).
+The normal map comes from the forms' true normals (Canvas.nrm), not from the colours, so painted
+highlights and dark outlines do not turn into bumps. Upright faces lean south, tops face up.
+
+Exits 0 if Atelier is missing (the game falls back to flat blocks); the normal map is still written.
 """
 from __future__ import annotations
 
 import math
 import sys
 
-from _atelier import K, ROOT, Canvas, atelier_binary, paint, ramp, rng_for
+from _atelier import K, ROOT, Canvas, atelier_binary, normal_image, paint, ramp, rng_for
 from _deps import skip
 
 OUT = ROOT / "assets" / "sprites" / "props" / "sheet_props_v2.png"
+OUT_NORMAL = OUT.with_name("sheet_props_v2_n.png")
 TABLE = ROOT / "scripts" / "prop_atlas.gd"
 C = 32
 WHITE = "#fff4e0"
@@ -41,7 +46,7 @@ def booth():
     cv.slab(0, 0, C, 11, VELVET, curve=0.0)                 # backrest
     cv.rect(1, 1, C - 2, 2, VELVET[4])
     cv.rect(3, 2, 8, 1, WHITE)
-    cv.slab(0, 10, C, 22, VELVET[1:])                       # seat cushion
+    cv.slab(0, 10, C, 22, VELVET[1:], face="top")                       # seat cushion
     for x, y in ((8, 17), (24, 17), (16, 25)):              # tufting
         cv.rect(x - 1, y - 1, 3, 3, VELVET[2])
         cv.rect(x, y, 1, 1, VELVET[0])
@@ -57,7 +62,7 @@ def booth():
 
 def bar(bottles):
     cv = Canvas(C, C + 18)
-    cv.slab(0, 0, C, C, WOOD)
+    cv.slab(0, 0, C, C, WOOD, face="top")
     for y in (8, 16, 24):
         cv.line(1, y, C - 2, y, WOOD[1])
     cv.line(3, 4, 13, 2, WOOD[4])                           # varnish shine
@@ -115,10 +120,10 @@ def table():
 def dj():
     cv = Canvas(C * 4, C * 2 + 22)
     deck = ramp("#3a2c66")
-    cv.slab(0, 0, 128, 64, deck, bevel=2)
+    cv.slab(0, 0, 128, 64, deck, bevel=2, face="top")
     cv.rect(2, 2, 124, 1, NEON["cyan"])
     for cx, label in ((30, "pink"), (98, "cyan")):          # turntables
-        cv.slab(cx - 26, 8, 52, 48, DARK[1:], bevel=1)
+        cv.slab(cx - 26, 8, 52, 48, DARK[1:], bevel=1, face="top")
         cv.disc(cx, 31, 22, 17, ramp("#16161e", 4), rim="#3c3c52")
         for r in (0.78, 0.6, 0.42):                         # grooves
             for a in range(0, 360, 3):
@@ -128,7 +133,7 @@ def dj():
         cv.rect(cx - 1, 30, 2, 2, WHITE)
         cv.limb(cx + 20, 12, cx + 9, 27, 1.3, STEEL)        # tone arm
         cv.ball(cx + 21, 11, 3, 3, STEEL, spec=WHITE)
-    cv.slab(57, 6, 14, 52, DARK[1:], bevel=1)               # mixer
+    cv.slab(57, 6, 14, 52, DARK[1:], bevel=1, face="top")               # mixer
     for i, y in enumerate(range(10, 30, 5)):
         for x in (60, 65):
             cv.ball(x + 1, y + 1, 1.6, 1.6, ramp(("#ff2a6d", "#05d9e8", "#f9f002", "#30ff70")[i], 3, 0.5, 1.1),
@@ -151,8 +156,8 @@ def dj():
 
 def speaker():
     cv = Canvas(C * 2, C * 2 + 44)
-    cv.slab(0, 0, 64, 64, DARK[1:], bevel=2)
-    cv.slab(22, 26, 20, 6, DARK[:3], bevel=1)               # handle recess
+    cv.slab(0, 0, 64, 64, DARK[1:], bevel=2, face="top")
+    cv.slab(22, 26, 20, 6, DARK[:3], bevel=1, face="top")               # handle recess
     cv.slab(0, 64, 64, 44, DARK[:4], bevel=2)
     cv.rect(2, 66, 60, 1, NEON["cyan"])
     for cx in (18, 46):
@@ -169,8 +174,8 @@ def speaker():
 def arcade():
     cv = Canvas(C, C + 38)
     body = ramp("#27345e")
-    cv.slab(0, 0, C, C, body)
-    cv.slab(3, 3, 26, 20, body[1:], bevel=1)
+    cv.slab(0, 0, C, C, body, face="top")
+    cv.slab(3, 3, 26, 20, body[1:], bevel=1, face="top")
     y = C
     cv.slab(0, y, C, 38, body[:4], bevel=1)
     cv.slab(2, y + 1, 28, 7, ramp("#d300c5", 4), bevel=1)   # lit marquee
@@ -199,8 +204,8 @@ def arcade():
 def vending():
     cv = Canvas(C, C + 38)
     body = ramp("#a83248")
-    cv.slab(0, 0, C, C, body)
-    cv.slab(3, 3, 26, 22, body[1:], bevel=1)
+    cv.slab(0, 0, C, C, body, face="top")
+    cv.slab(3, 3, 26, 22, body[1:], bevel=1, face="top")
     y = C
     cv.slab(0, y, C, 38, body[:4], bevel=1)
     cv.slab(2, y + 2, 19, 26, ramp("#1c2c3c", 3), bevel=1)  # window
@@ -223,7 +228,7 @@ def vending():
 
 def counter():
     cv = Canvas(C, C + 16)
-    cv.slab(0, 0, C, C, STEEL)
+    cv.slab(0, 0, C, C, STEEL, face="top")
     for i in (-14, -2, 10, 22):                             # brushed-metal glints
         cv.line(max(i, 1), max(-i, 1) + 2, min(i + 14, 30), 16 + min(-i, 0) + (14 if i < 0 else 14), STEEL[4])
     cv.line(4, 8, 12, 3, WHITE)
@@ -239,7 +244,7 @@ def counter():
 
 def stove():
     cv = Canvas(C, C + 16)
-    cv.slab(0, 0, C, C, STEEL)
+    cv.slab(0, 0, C, C, STEEL, face="top")
     for i, (x, y) in enumerate(((9, 9), (23, 9), (9, 22), (23, 22))):
         cv.disc(x, y, 6, 5, ramp("#2a2038", 3), rim="#5a4a80")
         cv.disc(x, y, 3, 2.4, ramp("#ff7a2a" if i == 2 else "#3a3048", 3, 0.5, 1.2))
@@ -254,7 +259,7 @@ def stove():
 
 def sink():
     cv = Canvas(C, C + 16)
-    cv.slab(0, 0, C, C, PORC)
+    cv.slab(0, 0, C, C, PORC, face="top")
     cv.disc(16, 18, 11, 9, ramp("#6a8ca8", 4), rim=PORC[1])
     cv.rect(15, 20, 3, 2, K)                                # drain
     cv.limb(16, 4, 16, 12, 1.6, STEEL)                      # tap
@@ -281,8 +286,8 @@ def toilet():
 
 def crate():
     cv = Canvas(C, C + 18)
-    cv.slab(0, 0, C, C, WOOD, bevel=2)
-    cv.slab(4, 4, 24, 24, WOOD[1:], bevel=1)
+    cv.slab(0, 0, C, C, WOOD, bevel=2, face="top")
+    cv.slab(4, 4, 24, 24, WOOD[1:], bevel=1, face="top")
     cv.line(5, 5, 26, 26, WOOD[0])
     cv.line(6, 5, 27, 26, WOOD[3])
     cv.slab(0, C, C, 18, WOOD[:4], bevel=2)
@@ -357,7 +362,7 @@ def vat():
 
 def rack():
     cv = Canvas(C, C + 40)
-    cv.slab(0, 0, C, C, DARK[1:], bevel=2)
+    cv.slab(0, 0, C, C, DARK[1:], bevel=2, face="top")
     for y in range(6, 26, 4):
         cv.rect(5, y, 22, 1, DARK[0])                       # top vent
     y0 = C
@@ -389,7 +394,7 @@ def chairs():
     for x in (1, 17):
         cv.slab(x, 2, 14, 13, teal, curve=0.5)              # back
         cv.rect(x + 2, 4, 6, 1, teal[4])
-        cv.slab(x, 16, 14, 16, teal[1:])                    # seat
+        cv.slab(x, 16, 14, 16, teal[1:], face="top")                    # seat
         cv.slab(x, 32, 14, 5, teal[:3], bevel=1)
     cv.rect(20, 20, 6, 4, "#8e0b1c")                        # stain
     grit(cv, teal, 0.06, "chairs")
@@ -508,8 +513,6 @@ PROPS = {
 
 def main() -> int:
     binary = atelier_binary()
-    if binary is None:
-        return skip("draw_props: atelier is not installed; nothing drawn, game falls back")
     drawn = {name: make() for name, make in PROPS.items()}
     width, pad = 512, 2
     x = y = shelf = 0
@@ -523,6 +526,13 @@ def main() -> int:
     atlas = Canvas(width, y + shelf)
     for name, (cv, _, _) in drawn.items():
         atlas.blit(cv, places[name][0], places[name][1])
+    try:
+        normal_image(atlas).save(OUT_NORMAL)
+        print(f"  {OUT_NORMAL.relative_to(ROOT / 'assets' / 'sprites')}  {atlas.w}x{atlas.h}")
+    except ImportError:
+        print("draw_props: Pillow is not installed; normal map not written")
+    if binary is None:
+        return skip("draw_props: atelier is not installed; colour sheet not drawn, game falls back")
     paint(binary, atlas, OUT)
     lines = ["extends RefCounted", "## Generated by tools/draw_props.py - do not edit by hand.",
              "## Where each prop sits in assets/sprites/props/sheet_props_v2.png.", "",
