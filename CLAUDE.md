@@ -190,6 +190,9 @@ tools/run_polisher.sh after         # same again; the brief gains a Before colum
   round a wall corner it walks straight into (`_round_corner`); a dash ends at walking pace. An infected that spots
   the player waits `NOTICE` (0.25s, a "!" pops) before coming; hits and noise skip that beat. A knockdown refreshes
   the combo window without adding to it, and a chain of two or more kills pays `Main.chain_bonus(n)` when it ends.
+- Physics interpolation is on (`project.godot`, asserted by the smoke test): actors move in 60 Hz physics ticks and
+  are drawn between ticks, so 90/120 Hz screens do not stutter. Anything that teleports an actor mid-play must call
+  `reset_physics_interpolation()` on it, or it is seen sliding to the new spot.
 - Restart after death must stay under 0.2s (asserted by the smoke test) — keep per-floor build work cheap and cached.
 - Each room is its own floor sprite and decal canvas so no canvas item exceeds the 2D light-per-item limit; keep
   that split when adding lit content.

@@ -134,6 +134,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	muzzle_light.position = shoulder
 	add_child(muzzle_light)
 	cam = Camera2D.new()
+	cam.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS # required by physics interpolation
 	add_child(cam)
 	_set_weapon("pipe")
 	_hold()
