@@ -93,7 +93,10 @@ func _process(delta: float) -> void:
 	if Engine.time_scale < 1.0 and Time.get_ticks_msec() >= _hitstop_until:
 		Engine.time_scale = 1.0
 	state_t += delta
+	var chaining := combo_t > 0.0
 	combo_t = maxf(0.0, combo_t - delta)
+	if chaining and combo_t <= 0.0:
+		_pay_chain()
 	if state == "play":
 		floor_time += delta
 		if controls.take("restart"):
@@ -106,6 +109,28 @@ func _process(delta: float) -> void:
 		floor_seed += 1
 		deaths = 0
 		start_floor()
+
+
+## Knocking an infected down keeps a chain alive (it does not add to it).
+func on_knockdown() -> void:
+	if combo_t > 0.0:
+		combo_t = COMBO_TIME
+
+
+## A chain of two or more kills pays a bonus when its window runs out; longer
+## chains pay more per kill.
+static func chain_bonus(n: int) -> int:
+	return (100 + 50 * n) * n if n >= 2 else 0
+
+
+func _pay_chain() -> void:
+	var bonus := chain_bonus(combo)
+	combo = 0
+	if bonus <= 0 or state != "play":
+		return
+	score += bonus
+	world.fx.popup(player.global_position + Vector2(0, -46), "CHAIN +%d" % bonus, Color("f9f002"))
+	world.fx.add_punch(0.03)
 
 
 func on_kill(e, executed: bool) -> void:

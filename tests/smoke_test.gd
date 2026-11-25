@@ -152,8 +152,31 @@ func _run() -> void:
 		ok(p.hand.frame == Fx.PLAYER_V3["run"][0] + p.body.frame and p.hand.flip_h == p.body.flip_h, "the fist follows the run cycle")
 	c.move = Vector2.ZERO
 	ok(p.global_position.x - p0.x > 20.0, "player moves")
-	await frames(4)
+	await frames(3)
+	ok(p.velocity.length() > 5.0 and p.velocity.length() < p.SPEED, "the player eases to a stop instead of halting")
+	await frames(6)
+	ok(p.velocity.length() < 0.1, "and has stopped within 0.15s")
 	ok(p.body.animation == "idle", "idle animation plays when standing")
+	# Corner rounding: pushed straight at the edge of a wall, the player slides round it.
+	var edge := Vector2i(-1, -1)
+	for y in range(1, w.L.h - 1):
+		for x in range(1, w.L.w - 2):
+			if edge.x < 0 and w.code_at(Vector2i(x, y)) == Layout.FLOOR and w.code_at(Vector2i(x + 1, y)) == Layout.FLOOR \
+					and w.code_at(Vector2i(x, y - 1)) == Layout.FLOOR and w.code_at(Vector2i(x + 1, y - 1)) == Layout.WALL \
+					and w.code_at(Vector2i(x - 1, y)) == Layout.FLOOR and w.code_at(Vector2i(x + 2, y)) == Layout.FLOOR:
+				edge = Vector2i(x, y)
+	if edge.x >= 0:
+		var back: Vector2 = p.global_position
+		p.global_position = w.center(edge) + Vector2(-4, -6) # overlapping the wall's lower edge by three pixels
+		p.velocity = Vector2.ZERO
+		var x0: float = p.global_position.x
+		c.move = Vector2.RIGHT
+		await frames(30)
+		c.move = Vector2.ZERO
+		ok(p.global_position.x - x0 > 24.0, "walking into a wall corner slides round it (%.0f px)" % (p.global_position.x - x0))
+		p.global_position = back
+		p.velocity = Vector2.ZERO
+		await frames(2)
 	var sorted_ok: bool = w.y_sort_enabled and w.props.size() > 10 and p.get_parent() == w
 	for prop in w.props:
 		sorted_ok = sorted_ok and prop.get_parent() == w and prop.z_index == 0
@@ -216,6 +239,25 @@ func _run() -> void:
 		c.aim = Vector2.RIGHT
 		await frames(3)
 
+	# An infected that spots the player takes a beat before coming for them.
+	var spotter = null
+	for z in w.enemy_list:
+		if spotter == null and z.kind == "shambler" and z.state != Enemy.CHASE and z.state != Enemy.DOWN:
+			spotter = z
+	if spotter != null:
+		spotter.state = Enemy.IDLE
+		spotter.global_position = p.global_position + Vector2(48, 0)
+		var noticed := false
+		var still := true
+		for i in 20:
+			await physics_frame
+			if spotter.notice_t > 0.0:
+				noticed = true
+				still = still and spotter.velocity.length() < 1.0
+		ok(noticed and still, "an infected that spots the player pauses before it comes")
+		await frames(20)
+		ok(spotter.notice_t <= 0.0 and spotter.state == Enemy.CHASE, "then it gives chase")
+
 	# Shoot one dead.
 	var e = _pick(["shambler"])
 	e.global_position = p.global_position + Vector2(40, 0)
@@ -257,6 +299,16 @@ func _run() -> void:
 	await frames(3)
 	ok(p.alive and p.grab_t <= 0.0, "kick breaks the grab")
 	ok(e.is_down(), "grabber is knocked down")
+	main.combo = 2
+	main.combo_t = 0.3
+	var score0: int = main.score
+	e.state = Enemy.CHASE
+	e.knockdown(Vector2.RIGHT)
+	ok(is_equal_approx(main.combo_t, main.COMBO_TIME), "a knockdown keeps the chain alive")
+	main.combo_t = 0.02
+	await frames(4)
+	ok(main.score == score0 + main.chain_bonus(2) and main.combo == 0 and main.chain_bonus(5) > main.chain_bonus(2) * 2,
+		"a chain pays out when it ends, more per kill the longer it ran")
 	await frames(22)
 	e.global_position = p.global_position + Vector2(12, 0)
 	ok(p.context() == "EXEC", "action button becomes EXEC near a downed zombie")
