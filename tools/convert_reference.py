@@ -102,6 +102,44 @@ def grow(mask):
     return out
 
 
+def refine_cuts(profile, starts, pitch):
+    """Cell boundaries (one more than cells): each nominal cut moves to the strongest edge within
+    a third of a cell, never closer than 0.6 of a cell to the cut before it."""
+    cuts = []
+    reach = max(1, int(pitch / 3))
+    for x in list(starts) + [starts[-1] + pitch]:
+        x = int(round(x)) - 1                      # the edge between source columns x and x + 1
+        lo = max(0, x - reach, (cuts[-1] + int(np.ceil(pitch * 0.6))) if cuts else 0)
+        hi = min(len(profile) - 1, x + reach)
+        if lo > hi:
+            lo = hi = min(len(profile) - 1, max(lo, x))
+        win = profile[lo:hi + 1]
+        best = lo + int(np.argmax(win))
+        # keep the nominal cut where there is no real edge to snap to (flat colour)
+        cuts.append(best if win.max() > profile.mean() * 0.5 else min(max(x, lo), hi))
+    return cuts
+
+
+def cell_colour(pix):
+    """Colour of one cell from all its source pixels: split them into a dark and a light group
+    and take the larger, or the dark one when it is a strong minority (a one-pixel eye or
+    outline that the cut grazed)."""
+    if len(pix) == 0:
+        return np.zeros(3)
+    lum = pix.mean(1)
+    if lum.max() - lum.min() < 24:
+        return np.median(pix, axis=0)
+    lo, hi = lum.min(), lum.max()
+    for _ in range(3):
+        dark = np.abs(lum - lo) <= np.abs(lum - hi)
+        if dark.all() or not dark.any():
+            break
+        lo, hi = lum[dark].mean(), lum[~dark].mean()
+    share = dark.mean()
+    pick = dark if share >= 0.5 or (share >= 0.4 and lo < 70 and hi - lo > 50) else ~dark
+    return np.median(pix[pick], axis=0)
+
+
 def recover(src, name, pitch):
     """Native RGBA pixels of one pose, and where its top-left sits in the source."""
     y0, y1 = SPEC["rows"]
@@ -111,11 +149,13 @@ def recover(src, name, pitch):
     gx, gy = edge_profiles(reg.mean(-1))
     px, py = fold(gx, pitch)[0] + 1, fold(gy, pitch)[0] + 1      # edges sit between cells
     xs, ys = np.arange(px, reg.shape[1] - pitch, pitch), np.arange(py, reg.shape[0] - pitch, pitch)
+    # A generated grid drifts, so each cut moves to the strongest edge near it, and a cell's
+    # colour is taken from the whole cell rather than from one point at its centre.
+    cx_, cy_ = refine_cuts(gx, xs, pitch), refine_cuts(gy, ys, pitch)
     grid = np.zeros((len(ys), len(xs), 3))
-    for j, y in enumerate(ys):
-        for i, x in enumerate(xs):
-            cx, cy = int(round(x + pitch / 2)), int(round(y + pitch / 2))
-            grid[j, i] = np.median(reg[cy - 1:cy + 2, cx - 1:cx + 2].reshape(-1, 3), axis=0)
+    for j in range(len(ys)):
+        for i in range(len(xs)):
+            grid[j, i] = cell_colour(reg[cy_[j] + 1:cy_[j + 1], cx_[i] + 1:cx_[i + 1]].reshape(-1, 3))
     backdrop = np.array(SPEC["backdrop"], float)
     fg = np.abs(grid - backdrop).sum(-1) > 30
     dark = grid.mean(-1) < 26

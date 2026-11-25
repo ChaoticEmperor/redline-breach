@@ -39,8 +39,13 @@ const SPRITES := {
 	# Held weapons at the player sheet's pixel size and palette (tools/draw_weapons.py).
 	"held_pipe": "weapons/held_pipe", "held_pistol": "weapons/held_pistol", "held_shotgun": "weapons/held_shotgun",
 }
-## Pixel of each held weapon that sits in the fist. Keep in step with HELD in tools/draw_weapons.py.
-const HELD_GRIP := {"pipe": Vector2(4, 3), "pistol": Vector2(3, 6), "shotgun": Vector2(10, 6)}
+## Held weapon sheets: HELD_DIRS cells of HELD_CELL pixels, one per aim direction (cell i points
+## i x 22.5 degrees clockwise from right), the grip pixel at the centre pixel of each cell.
+## HELD_REACH is how far the muzzle or tip is from the grip, in sheet pixels.
+## Keep in step with HELD_* in tools/draw_weapons.py.
+const HELD_DIRS := 16
+const HELD_CELL := 64
+const HELD_REACH := {"pipe": 27.0, "pistol": 12.0, "shotgun": 24.0}
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
 const ROOMS_Y := 3
@@ -97,6 +102,17 @@ static var _mats := {}
 # The converted player sheet: 96px cells, 3 sheet pixels per world pixel (2 screen pixels per
 # art pixel at 1080p), feet on row 90, figure 78px tall, weapon held 37px above the feet (chest height).
 # animation: [first frame, frames, fps, loops]
+## Transient effects are drawn on the art's pixel grid (PX world pixels, the player
+## sheet's pixel size), in hard colour steps, and fade through an ordered dither
+## instead of alpha, so they read as pixel art beside the sprites.
+const PX := 1.0 / 3.0
+const BAYER := [0.03125, 0.53125, 0.15625, 0.65625, 0.78125, 0.28125, 0.90625, 0.40625,
+		0.21875, 0.71875, 0.09375, 0.59375, 0.96875, 0.46875, 0.84375, 0.34375]
+const HOT := [Color("fff3a6"), Color("ffe26b"), Color("ff8a2a"), Color("f2561d")] # hottest first
+const SLASH_RAMP := [Color("c8f6ff"), Color("05d9e8"), Color("1c7fa6")]
+const MUZZLE_LOBES := [[0.0, 11.0, 0.8], [0.0, 4.5, 1.7], [0.6, 5.5, 0.55], [-0.6, 5.5, 0.55]]
+const FLASH_TIME := 0.066 # two 30 fps frames: white-hot, then cooler and shorter
+const SPARK_TIME := 0.16
 const PLAYER_V3 := {"idle": [0, 2, 2.2, true], "run": [2, 4, 8.5, true], "kick": [6, 1, 1.0, false], "death": [7, 1, 1.0, false]}
 
 static var _paths := {}
@@ -764,8 +780,8 @@ func debris(texture: Texture2D, pos: Vector2, rot: float, size: float) -> void:
 	_add([1, pos, texture, rot, Color(0.8, 0.8, 0.8), Vector2(size, size)])
 
 
-func flash(pos: Vector2) -> void:
-	flashes.append([pos, 0.05])
+func flash(pos: Vector2, dir := Vector2.RIGHT) -> void:
+	flashes.append([pos, FLASH_TIME, dir.normalized()])
 
 
 func _draw_decals(i: int) -> void:
@@ -787,8 +803,8 @@ func tracer(a: Vector2, b: Vector2, col := Color(1, 0.95, 0.6)) -> void:
 
 
 func spark(pos: Vector2) -> void:
-	for i in 4:
-		parts.append([pos, Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 90.0, 0.12, Color(1, 0.9, 0.5)])
+	for i in 5:
+		parts.append([pos, Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 110.0, SPARK_TIME, Color(1, 0.9, 0.5)])
 
 
 func ring(pos: Vector2, max_r: float) -> void:
@@ -862,6 +878,44 @@ func _process(delta: float) -> void:
 	_was_busy = busy
 
 
+## One art pixel at `p`, snapped to the art grid. `a` below 1 is not blended: an
+## ordered dither decides whether the pixel is drawn, so fades stay hard-edged.
+func _dot(p: Vector2, col: Color, a := 1.0, size := 1) -> void:
+	var cx := int(floor(p.x / PX))
+	var cy := int(floor(p.y / PX))
+	if a < 1.0 and a <= BAYER[(cy & 3) * 4 + (cx & 3)]:
+		return
+	draw_rect(Rect2(cx * PX, cy * PX, PX * size, PX * size), col)
+
+
+## Muzzle flash along `dir`: a long spike, a fat body and two side rays, in three
+## hard colour steps. The first half is white-hot; the second is shorter and cooler.
+func _muzzle(pos: Vector2, dir: Vector2, hot: bool) -> void:
+	var grow: float = 1.0 if hot else 0.6
+	var fat: float = 1.0 if hot else 0.72
+	var cols: Array = [Color.WHITE, HOT[1], HOT[2]] if hot else [HOT[1], HOT[2], HOT[3]]
+	var side := dir.orthogonal()
+	var reach: float = 11.0 * grow
+	var u := -1.0
+	while u < reach:
+		var v := -4.0
+		while v < 4.0:
+			var m := -1.0
+			for lobe in MUZZLE_LOBES: # [angle, length, width]
+				var ld := Vector2.from_angle(lobe[0])
+				var along: float = u * ld.x + v * ld.y
+				var across: float = absf(-u * ld.y + v * ld.x)
+				var length: float = lobe[1] * grow
+				if along < 0.0 or along > length:
+					continue
+				var w: float = lobe[2] * fat * pow(1.0 - along / length, 0.8) * minf(1.0, 0.45 + 3.0 * along / length)
+				m = maxf(m, (w - across) / maxf(lobe[2] * fat, 0.01))
+			if m > 0.0:
+				_dot(pos + dir * u + side * v, cols[0] if m > 0.45 else (cols[1] if m > 0.15 else cols[2]))
+			v += PX
+		u += PX
+
+
 func _draw() -> void:
 	for g in ghosts:
 		# Dash after-image: the body frame, tinted and fading.
@@ -870,23 +924,55 @@ func _draw() -> void:
 		draw_texture_rect(g[0], Rect2(at, Vector2(-half * 2.0 if g[2] else half * 2.0, half * 2.0)), false,
 				Color(0.3, 0.9, 1.0, g[3] * 2.4))
 	for s in slashes:
+		# The tail chases the head; the arc is widest mid-sweep and dissolves through the dither.
 		var k: float = s[2] / 0.14
 		var sweep := 1.25
 		var from: float = s[1] - sweep + (1.0 - k) * 1.2
-		draw_arc(s[0], 21.0, from, s[1] + sweep, 14, Color(1, 1, 1, k), 3.0)
-		draw_arc(s[0], 17.5, from, s[1] + sweep * 0.8, 12, Color(0.3, 0.95, 1.0, k * 0.8), 2.0)
+		var to: float = s[1] + sweep
+		var a := from
+		while a < to:
+			var v: float = (a - from) / maxf(to - from, 0.01) # 0 at the tail, 1 at the head
+			var w: float = 2.6 * pow(sin(PI * clampf(v, 0.02, 0.98)), 0.6)
+			var dir := Vector2.from_angle(a)
+			var r: float = 21.0 - w * 0.5
+			while r < 21.0 + w * 0.5:
+				_dot(s[0] + dir * r, Color.WHITE if k > 0.5 else SLASH_RAMP[0], 0.35 + v * 0.65 * (0.5 + k))
+				r += PX
+			r = 17.2
+			while r < 17.2 + w * 0.5:
+				_dot(s[0] + dir * r, SLASH_RAMP[1] if k > 0.4 else SLASH_RAMP[2], v * (0.3 + k * 0.7))
+				r += PX
+			a += PX / 21.0
 	for s in shells:
 		draw_rect(Rect2(s[0] + Vector2(0, -s[2]), Vector2(2, 1)), Color("ffe27a"))
-	for f in flashes:
-		draw_circle(f[0], 9.0, Color(1.0, 0.75, 0.3, 0.35))
-		draw_circle(f[0], 5.0, Color(1.0, 0.95, 0.7, 0.9))
 	for t in tracers:
-		draw_line(t[0], t[1], t[3], 1.0)
+		# A hot core that breaks up as it fades, stepped along the art grid.
+		var span: Vector2 = t[1] - t[0]
+		var n := int(span.length() / PX)
+		var k: float = t[2] / 0.06
+		var step: Vector2 = span / maxf(n, 1)
+		for i in n:
+			_dot(t[0] + step * i, t[3] if k > 0.5 else HOT[2], 0.25 + k, 2)
+	for f in flashes:
+		_muzzle(f[0], f[2], f[1] > FLASH_TIME * 0.5)
 	for p in parts:
-		draw_rect(Rect2(p[0], Vector2(2, 2)), p[3])
+		# Sparks cool down the ramp and trail one pixel behind.
+		var k: float = p[2] / SPARK_TIME
+		_dot(p[0], HOT[0] if k > 0.6 else (HOT[1] if k > 0.3 else HOT[2]), 1.0, 2)
+		_dot(p[0] - p[1].normalized() * PX * 2.0, HOT[3], k * 1.4)
 	for r in rings:
-		var a: float = 1.0 - r[1] / r[2]
-		draw_arc(r[0], r[1], 0, TAU, 24, Color(1, 0.8, 0.3, a), 3.0)
+		# Blast ring: thins and cools as it grows, then dissolves.
+		var k: float = 1.0 - r[1] / r[2]
+		var col: Color = HOT[0] if k > 0.7 else (HOT[1] if k > 0.45 else (HOT[2] if k > 0.2 else HOT[3]))
+		var thick: float = maxf(PX, 3.0 * k + 0.4)
+		var a := 0.0
+		while a < TAU:
+			var dir := Vector2.from_angle(a)
+			var d := 0.0
+			while d < thick:
+				_dot(r[0] + dir * (r[1] + d), col, 0.3 + k * 1.2)
+				d += PX
+			a += PX / maxf(r[1], 1.0)
 	for p in popups:
 		# Drawn at 4x size and scaled down so text stays sharp under the camera zoom.
 		draw_set_transform(p[0] + Vector2(-40, 0), 0.0, Vector2(0.25, 0.25))
