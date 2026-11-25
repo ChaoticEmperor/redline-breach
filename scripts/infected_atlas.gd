@@ -7,8 +7,8 @@ const CELL := 112
 const FEET := 104
 const ANIMS := {
 	"shambler": {"walk": [0, 10, 8.0, true], "lunge": [10, 5, 10.0, true], "down": [15, 1, 1.0, false]},
-	"horde": {"walk": [0, 12, 9.0, true], "lunge": [12, 10, 12.0, true], "down": [22, 1, 1.0, false]},
+	"horde": {"walk": [0, 12, 9.0, true], "lunge": [12, 7, 12.0, true], "down": [19, 1, 1.0, false]},
 	"runner": {"walk": [0, 7, 13.0, true], "lunge": [7, 5, 12.0, true], "down": [12, 1, 1.0, false]},
 	"bloater": {"walk": [0, 10, 6.0, true], "lunge": [10, 4, 8.0, true], "down": [14, 1, 1.0, false]},
 }
-const HEIGHT := {"shambler": 67, "horde": 69, "runner": 62, "bloater": 65}
+const HEIGHT := {"shambler": 82, "horde": 86, "runner": 70, "bloater": 80}

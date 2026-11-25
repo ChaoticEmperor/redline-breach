@@ -148,8 +148,8 @@ func _run() -> void:
 		sized = sized and z.body.offset.y == z.art.cell / 2.0 - z.art.feet and z.body.sprite_frames.has_animation("lunge") \
 				and z.body.sprite_frames.has_animation("down")
 		if z.art.sheet != "chars_v2":
-			sized = sized and is_equal_approx(z.art.scale, p.art.scale) and z.art.height < p.art.height
-	ok(sized, "infected sheets match the player's pixel size, with walk, lunge and down poses")
+			sized = sized and is_equal_approx(z.art.scale, p.art.scale) and absf(z.art.height - p.art.height) <= p.art.height * 0.12
+	ok(sized, "infected sheets match the player's pixel size and height (within 12%), with walk, lunge and down poses")
 	var lit: Color = w._unlit * w.AMBIENT
 	ok(absf(lit.r - 1.0) < 0.01 and absf(lit.g - 1.0) < 0.01 and absf(lit.b - 1.0) < 0.01 and w.AMBIENT.get_luminance() < 0.35,
 		"ambient stays dim and the unlit modulate cancels it")
