@@ -12,6 +12,7 @@ enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
 
 const SIGHT := 150.0
 const BLAST := 44.0
+const NOTICE := 0.25 # the beat between spotting the player and going for them
 const ACTOR_LIGHT := 2 # light layer for actors; room lights only reach layer 1
 const STATS := {
 	"shambler": {"hp": 2, "speed": 40.0, "r": 5.0, "score": 100, "size": 1.0},
@@ -50,6 +51,7 @@ var body: AnimatedSprite2D
 var base_scale := 0.5
 var lit := Color.WHITE # the body's normal modulate: its own colours, unaffected by room lights
 var skin := "shambler"
+var notice_t := 0.0
 
 
 func setup(p_main, p_world, p_player, p_kind: String) -> void:
@@ -140,6 +142,10 @@ func _physics_process(delta: float) -> void:
 			lost_t = 0.0
 			if state != CHASE:
 				alert()
+				if state == CHASE:
+					# Spotted, not yet lunging: a readable beat so a grab never comes from nowhere.
+					notice_t = NOTICE
+					fx.popup(global_position + Vector2(0, -30), "!", Color("f9f002"))
 		elif state == CHASE:
 			lost_t += 0.2
 			if lost_t > 4.0 or not player.alive:
@@ -161,6 +167,13 @@ func _physics_process(delta: float) -> void:
 				state = IDLE
 		CHASE:
 			grabbing = player.grab_t > 0.0 and player.grabbers.has(self)
+			if notice_t > 0.0:
+				notice_t -= delta
+				facing = to_p / maxf(dist, 0.01)
+				velocity = knock
+				_pose("walk", false)
+				move_and_slide()
+				return
 			if grabbing:
 				want = Vector2.ZERO
 			elif sees and dist < 90.0:
@@ -277,6 +290,8 @@ func knockdown(dir: Vector2) -> void:
 		alert()
 		return
 	state = DOWN
+	notice_t = 0.0
+	main.on_knockdown()
 	down_t = 1.8
 	knock = dir * 170.0
 	if absf(dir.x) > 0.1:

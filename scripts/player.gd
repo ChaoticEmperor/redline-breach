@@ -11,6 +11,8 @@ const Fx = preload("res://scripts/fx.gd")
 const World = preload("res://scripts/world.gd")
 
 const SPEED := 112.0
+const ACCEL := 1120.0 # reaches SPEED, and stops from it, in 0.1s (6 frames)
+const NUDGE := 6.0 # how far a blocked player is slid sideways to round a corner
 const DASH_SPEED := 340.0
 const DASH_TIME := 0.14
 const DASH_CD := 0.7
@@ -281,8 +283,11 @@ func _physics_process(delta: float) -> void:
 			fx.ghost(body.sprite_frames.get_frame_texture(body.animation, body.frame), global_position, body.flip_h,
 					art.cell * art.scale / 2.0, (art.feet - art.cell / 2.0) * art.scale)
 	else:
-		velocity = mv.limit_length(1.0) * SPEED
+		velocity = velocity.limit_length(SPEED) # a dash ends at walking pace, it does not coast
+		velocity = velocity.move_toward(mv.limit_length(1.0) * SPEED, ACCEL * delta)
 	move_and_slide()
+	if dash_t <= 0.0:
+		_round_corner(mv, delta)
 	if dash_t > 0.0:
 		# Dashing bursts through doors and windows.
 		for i in get_slide_collision_count():
@@ -306,6 +311,27 @@ func _physics_process(delta: float) -> void:
 		give(got)
 	if world.exit_open and world.exit_rect.has_point(global_position):
 		main.floor_cleared()
+
+
+## Walking straight into the edge of a wall or doorway slides the player
+## sideways round it instead of stopping them dead (matters most on a touch stick).
+func _round_corner(mv: Vector2, delta: float) -> void:
+	if mv.length() < 0.3 or get_slide_collision_count() == 0:
+		return
+	var dir := Vector2(signf(mv.x), 0) if absf(mv.x) > absf(mv.y) else Vector2(0, signf(mv.y))
+	if absf(mv.dot(dir.orthogonal())) > 0.35 * mv.length():
+		return # steering diagonally already: the slide along the wall does the job
+	var blocked := false
+	for i in get_slide_collision_count():
+		blocked = blocked or get_slide_collision(i).get_normal().dot(dir) < -0.7
+	if not blocked:
+		return
+	for side in [dir.orthogonal(), -dir.orthogonal()]:
+		for d in [2.0, 4.0, NUDGE]:
+			var from := global_transform.translated(side * d)
+			if not test_move(global_transform, side * d) and not test_move(from, dir * 3.0):
+				move_and_collide(side * SPEED * 0.7 * delta)
+				return
 
 
 # ---------------------------------------------------------------- weapons
