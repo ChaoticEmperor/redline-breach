@@ -114,6 +114,10 @@ Depth and lighting (`world.gd`):
   (`World.actor_tint()`), so they show their own palette; room lights only reach layer 1 (floor, props, gore).
   Muzzle flashes and explosions light both. The dancefloor pulse is self-lit and drawn under the actors.
 - **Lighting, glow, gore, particles and all audio stay procedural** (`fx.gd`).
+- Transient effects (muzzle flash, tracers, sparks, melee arc, blast ring) are drawn through `Fx._dot()`: snapped to
+  the art pixel grid (`Fx.PX`, the player sheet's pixel size), coloured in hard steps down a ramp (`Fx.HOT`), and faded
+  with an ordered dither instead of alpha. Keep new effects on that path; do not use `draw_circle` / `draw_arc` /
+  alpha fades for them.
 
 ## Visual polisher: asset slicer, frame capture, visual diff
 

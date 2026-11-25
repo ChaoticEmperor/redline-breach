@@ -331,7 +331,7 @@ func _fire() -> void:
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
 	fx.casing(global_position + hold, aim)
-	fx.flash(muzzle)
+	fx.flash(muzzle, aim)
 	muzzle_light.energy = 2.5
 	recoil = 5.0 if heavy else 3.0
 	fx.play(weapon)
