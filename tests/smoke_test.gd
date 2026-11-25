@@ -108,6 +108,9 @@ func _run() -> void:
 				fine = fine and c.distance_to(pad[keys[j]]) > r + radius[keys[j]]
 		ok(fine, "%dx%d: HUD panels and touch buttons fit without overlapping" % [sz.x, sz.y])
 
+	print("== display ==")
+	# Movement is stepped at 60 ticks/s; without interpolation a 90/120 Hz screen shows every other frame frozen.
+	ok(ProjectSettings.get_setting("physics/common/physics_interpolation"), "physics interpolation is on (smooth movement above 60 Hz)")
 	print("== game ==")
 	main = load("res://main.tscn").instantiate()
 	root.add_child(main)
