@@ -32,6 +32,8 @@ const SPRITES := {
 	"hud_pipe": "weapons/hud_pipe", "hud_pistol": "weapons/hud_pistol", "hud_shotgun": "weapons/hud_shotgun",
 	# 3/4-view sheets drawn with Atelier (tools/draw_characters.py, tools/draw_props.py).
 	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
+	# Its normal map, same layout, from the forms' true normals (tools/draw_props.py).
+	"props_v2_n": "props/sheet_props_v2_n",
 	# The player, converted from a reference image (tools/convert_reference.py).
 	"player_v3": "chars/sheet_player_v3",
 	# Its front fist alone (same layout), drawn over the held weapon so the hand grips it.
@@ -349,11 +351,32 @@ static func prop_rect(n: String) -> Rect2i:
 
 static func prop_tex(n: String) -> Texture2D:
 	if not _props.has(n):
-		var at := AtlasTexture.new()
-		at.atlas = tex("props_v2")
-		at.region = prop_rect(n)
-		_props[n] = at
+		var r := prop_rect(n)
+		if prop_normals():
+			_props[n] = lit(ImageTexture.create_from_image(img("props_v2").get_region(r)),
+				ImageTexture.create_from_image(img("props_v2_n").get_region(r)))
+		else:
+			var at := AtlasTexture.new()
+			at.atlas = tex("props_v2")
+			at.region = r
+			_props[n] = at
 	return _props[n]
+
+
+## True when the props sheet has a normal map beside it (both files exist), so props shade
+## with the direction of the room lights. Without it props are lit flat, as before.
+static func prop_normals() -> bool:
+	return has_sprite("props_v2") and has_sprite("props_v2_n")
+
+
+## A texture that carries a normal map for 2D lights; just `diffuse` when there is none.
+static func lit(diffuse: Texture2D, normal: Texture2D) -> Texture2D:
+	if normal == null:
+		return diffuse
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = diffuse
+	ct.normal_texture = normal
+	return ct
 
 
 ## Path of the sprite file for a texture name, or "" if there is none.

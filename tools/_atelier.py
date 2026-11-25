@@ -23,6 +23,8 @@ KEYS = string.ascii_letters + string.digits + "!$%&()*+,-/:;<=>?@[]^_{|}~"
 K = "#140c1c"                      # outline
 LIGHT = (-0.52, -0.62, 0.59)       # towards the light: upper left, out of the screen
 BAYER = ((0.0, 0.5), (0.75, 0.25))
+FRONT = (0.0, 0.0, 1.0)            # normal of a surface facing the viewer (view frame: x right, y down, z out)
+TOP = (0.0, -0.6, 0.8)             # normal of a horizontal surface (a table top) seen in the 3/4 view
 
 
 def ink(shades: list[str], amount: float = 0.55) -> str:
@@ -57,16 +59,23 @@ class Canvas:
     def __init__(self, w: int, h: int):
         self.w, self.h = w, h
         self.px = [[None] * w for _ in range(h)]
+        # Surface normal per pixel in the view frame, kept by the lit forms for the normal map
+        # (normal_image()). Detail painted on top keeps the normal of the form under it.
+        self.nrm = [[None] * w for _ in range(h)]
         self.grit = 0.9  # ordered-dither strength on lit forms; 0 gives clean cel bands
 
     # ------------------------------------------------------------ basics
     def get(self, x, y):
         return self.px[y][x] if 0 <= x < self.w and 0 <= y < self.h else None
 
-    def set(self, x, y, c):
+    def set(self, x, y, c, n=None):
         x, y = int(math.floor(x)), int(math.floor(y))
         if 0 <= x < self.w and 0 <= y < self.h:
             self.px[y][x] = c
+            if c is None:
+                self.nrm[y][x] = None
+            elif n is not None:
+                self.nrm[y][x] = n
 
     def rect(self, x, y, w, h, c):
         for yy in range(int(y), int(y + h)):
@@ -82,7 +91,7 @@ class Canvas:
         for y in range(other.h):
             for x in range(other.w):
                 if other.px[y][x] is not None:
-                    self.set(ox + x, oy + y, other.px[y][x])
+                    self.set(ox + x, oy + y, other.px[y][x], other.nrm[y][x])
 
     def speckle(self, x, y, w, h, colours, chance, rng, only=None):
         """Grit: recolour scattered pixels (optionally only those in `only`)."""
@@ -98,19 +107,21 @@ class Canvas:
         v = (light * 0.5 + 0.5) * len(shades) + (BAYER[y & 1][x & 1] - 0.375) * grit
         return shades[max(0, min(len(shades) - 1, int(v)))]
 
-    def _fill(self, pts, outline):
-        """pts: {(x, y): colour}. Draws a 1px outline around the shape first."""
+    def _fill(self, pts, outline, normals=None):
+        """pts: {(x, y): colour}. Draws a 1px outline around the shape first.
+        normals: {(x, y): view-frame normal}; an outline pixel takes the normal of the form pixel beside it."""
+        normals = normals or {}
         if outline:
             for (x, y) in pts:
                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                     if (x + dx, y + dy) not in pts:
-                        self.set(x + dx, y + dy, outline)
+                        self.set(x + dx, y + dy, outline, normals.get((x, y), FRONT))
         for (x, y), c in pts.items():
-            self.set(x, y, c)
+            self.set(x, y, c, normals.get((x, y), FRONT))
 
     def ball(self, cx, cy, rx, ry, shades, outline=K, spec=None, flat=0.0):
         """Lit ellipsoid. `flat` (0..1) pushes it towards a disc seen from above."""
-        pts = {}
+        pts, normals = {}, {}
         for y in range(int(cy - ry - 1), int(cy + ry + 2)):
             for x in range(int(cx - rx - 1), int(cx + rx + 2)):
                 nx, ny = (x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry
@@ -120,7 +131,8 @@ class Canvas:
                 nz = math.sqrt(1.0 - d)
                 li = nx * LIGHT[0] * (1 - flat) + ny * LIGHT[1] * (1 - flat) + (nz + flat) * LIGHT[2]
                 pts[(x, y)] = spec if spec and li > 0.9 else self._tone(shades, li * 1.25, x, y, self.grit)
-        self._fill(pts, outline)
+                normals[(x, y)] = _unit(nx * (1 - flat), ny * (1 - flat), nz + flat)
+        self._fill(pts, outline, normals)
 
     def limb(self, x0, y0, x1, y1, r, shades, outline=K, r1=None):
         """Lit capsule from (x0, y0) to (x1, y1); radius tapers from r to r1."""
@@ -128,7 +140,7 @@ class Canvas:
         dx, dy = x1 - x0, y1 - y0
         length2 = dx * dx + dy * dy or 1e-6
         rr = max(r, r1)
-        pts = {}
+        pts, normals = {}, {}
         for y in range(int(min(y0, y1) - rr - 1), int(max(y0, y1) + rr + 2)):
             for x in range(int(min(x0, x1) - rr - 1), int(max(x0, x1) + rr + 2)):
                 px, py = x + 0.5 - x0, y + 0.5 - y0
@@ -141,30 +153,40 @@ class Canvas:
                 nz = math.sqrt(1.0 - d)
                 li = ox / rad * LIGHT[0] + oy / rad * LIGHT[1] + nz * LIGHT[2]
                 pts[(x, y)] = self._tone(shades, li * 1.25, x, y, self.grit)
-        self._fill(pts, outline)
+                normals[(x, y)] = _unit(ox / rad, oy / rad, nz)
+        self._fill(pts, outline, normals)
 
-    def slab(self, x, y, w, h, shades, outline=K, bevel=1, curve=0.0, grit=0.9):
+    def slab(self, x, y, w, h, shades, outline=K, bevel=1, curve=0.0, grit=0.9, face="front"):
         """Lit panel facing the viewer: lighter towards the top-left, with a
-        bevel. `curve` > 0 shades it like a cylinder (dark at both sides)."""
-        pts = {}
+        bevel. `curve` > 0 shades it like a cylinder (dark at both sides).
+        `face` only feeds the normal map: "front" for an upright face, "top" for a
+        horizontal one (a counter top, a seat); the colours are the same."""
+        base = TOP if face == "top" else FRONT
+        pts, normals = {}, {}
         x, y, w, h = int(x), int(y), int(w), int(h)
         for yy in range(y, y + h):
             for xx in range(x, x + w):
                 u, v = (xx - x + 0.5) / w, (yy - y + 0.5) / h
+                n = base
                 if bevel and (xx - x < bevel or yy - y < bevel):
                     li = 0.75
+                    n = _unit(base[0] - (0.6 if xx - x < bevel else 0.0), base[1] - (0.6 if yy - y < bevel else 0.0), base[2])
                 elif bevel and (x + w - xx <= bevel or y + h - yy <= bevel):
                     li = -0.75
+                    n = _unit(base[0] + (0.6 if x + w - xx <= bevel else 0.0), base[1] + (0.6 if y + h - yy <= bevel else 0.0), base[2])
                 else:
                     li = 0.25 - v * 0.55 - u * 0.2
                 if curve:
                     li = (1.0 - abs(u * 2 - 1.15) ** 1.6 * 1.6) * curve + li * (1 - curve)
+                    side = max(-0.95, min(0.95, (u * 2 - 1) * curve))
+                    n = _unit(side, n[1], math.sqrt(1 - side * side))
                 pts[(xx, yy)] = self._tone(shades, li, xx, yy, grit)
-        self._fill(pts, outline)
+                normals[(xx, yy)] = n
+        self._fill(pts, outline, normals)
 
     def disc(self, cx, cy, rx, ry, shades, outline=K, rim=None):
         """Flat ellipse seen at an angle (a table top, a barrel lid, liquid)."""
-        pts = {}
+        pts, normals = {}, {}
         for y in range(int(cy - ry - 1), int(cy + ry + 2)):
             for x in range(int(cx - rx - 1), int(cx + rx + 2)):
                 nx, ny = (x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry
@@ -175,7 +197,8 @@ class Canvas:
                     pts[(x, y)] = rim
                 else:
                     pts[(x, y)] = self._tone(shades, 0.35 - nx * 0.45 - ny * 0.55, x, y, self.grit)
-        self._fill(pts, outline)
+                normals[(x, y)] = TOP
+        self._fill(pts, outline, normals)
 
     def contour(self, c=K, x0=0, y0=0, x1=None, y1=None, skip=()):
         """Recolours the outermost opaque pixels (the silhouette edge) to `c`,
@@ -231,6 +254,38 @@ class Canvas:
                         break
         for x, y in todo:
             self.px[y][x] = c
+
+
+def _unit(x: float, y: float, z: float) -> tuple[float, float, float]:
+    length = math.sqrt(x * x + y * y + z * z) or 1.0
+    return (x / length, y / length, z / length)
+
+
+# The view looks at the floor from the south and above, tilted VIEW_TILT from straight down.
+VIEW_TILT = math.radians(37)
+
+
+def to_floor(n: tuple[float, float, float]) -> tuple[float, float, float]:
+    """A view-frame normal in Godot's 2D lighting frame: x east, y south (down the screen), z up off the floor.
+    The canvas is the floor, so a table top (TOP) comes out as (0, 0, 1) and a front face leans south."""
+    s, c = math.sin(VIEW_TILT), math.cos(VIEW_TILT)
+    x, y, z = n
+    return _unit(x, y * c + z * s, -y * s + z * c)
+
+
+def normal_image(canvas: "Canvas"):
+    """The canvas's normal map as a Pillow image: RGB = normal * 0.5 + 0.5 with green pointing up the
+    screen (the OpenGL convention Godot reads), alpha = the colour sheet's coverage."""
+    from PIL import Image
+    im = Image.new("RGBA", (canvas.w, canvas.h), (128, 128, 255, 0))
+    out = im.load()
+    for y in range(canvas.h):
+        for x in range(canvas.w):
+            if canvas.px[y][x] is None:
+                continue
+            fx, fy, fz = to_floor(canvas.nrm[y][x] or FRONT)
+            out[x, y] = (round(127.5 + fx * 127.5), round(127.5 - fy * 127.5), round(127.5 + fz * 127.5), 255)
+    return im
 
 
 def atelier_binary() -> str | None:
