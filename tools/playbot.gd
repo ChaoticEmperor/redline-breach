@@ -38,6 +38,14 @@ func _initialize() -> void:
 	_loop()
 
 
+## Watchdog: if the loop dies on a script error, close the window instead of hanging.
+func _process(_delta: float) -> bool:
+	if Time.get_ticks_msec() > 30000 + max_frames * 50:
+		print("playbot: TIMED OUT")
+		quit(1)
+	return false
+
+
 func _log(s: String) -> void:
 	var line := "[%6.1fs] %s" % [frame / 60.0, s]
 	print("playbot: " + line)
@@ -117,7 +125,7 @@ func _loop() -> void:
 				await _shot("%03d_%s" % [shots, main.state])
 				shots += 1
 		if main.kills != last_kills:
-			_log("kill #%d score=%d combo=%d weapon=%s ammo=%s" % [main.kills, main.score, main.combo, player.weapon, player.ammo])
+			_log("kill #%d score=%d combo=%d weapon=%s ammo=%s" % [main.kills, main.score, main.combo, main.player.weapon, main.player.ammo])
 			last_kills = main.kills
 		if frame % shot_every == 0:
 			await _shot("%03d_play" % shots)
@@ -140,6 +148,7 @@ func _loop() -> void:
 			c.press("any")
 			continue
 
+		player = main.player # a restart during an await above builds a new player
 		var p: Vector2 = player.global_position
 		c.fire = false
 		c.aim = Vector2.ZERO

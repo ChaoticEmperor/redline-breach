@@ -12,6 +12,10 @@ enum { IDLE, INVESTIGATE, CHASE, DOWN, FUSE }
 
 const SIGHT := 150.0
 const BLAST := 44.0
+const REACTION := 0.25 # time a player needs to notice a warning before moving
+## Time from the fuse lighting to the burst: reacting, then walking out of BLAST from contact.
+const FUSE_TIME := 0.65
+const ACID := Color("b8ff40")
 const NOTICE := 0.25 # the beat between spotting the player and going for them
 const ACTOR_LIGHT := 2 # light layer for actors; room lights only reach layer 1
 const STATS := {
@@ -121,7 +125,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if state == FUSE:
 		fuse_t -= delta
-		var k := 1.0 - fuse_t / 0.45
+		var k := fuse_progress()
 		body.scale = Vector2.ONE * base_scale * (1.0 + k * 0.5)
 		body.modulate = lit.lerp(lit * Color(2.2, 1.4, 0.6), k)
 		if fuse_t <= 0.0:
@@ -323,14 +327,22 @@ func _die(dir: Vector2, executed := false) -> void:
 	queue_free()
 
 
+## 0 when the fuse lights, 1 at the burst.
+func fuse_progress() -> float:
+	return clampf(1.0 - fuse_t / FUSE_TIME, 0.0, 1.0)
+
+
 func _start_fuse() -> void:
 	if state == FUSE or dead:
 		return
 	state = FUSE
-	fuse_t = 0.45
+	fuse_t = FUSE_TIME
 	velocity = Vector2.ZERO
 	_pose("lunge")
 	fx.play("fuse")
+	# Readable danger: the blast's exact reach is marked on the floor for the whole fuse.
+	fx.warn(self, global_position, BLAST)
+	fx.popup(global_position + Vector2(0, -30), "!!", ACID)
 
 
 func _explode() -> void:
@@ -344,7 +356,7 @@ func _explode() -> void:
 	fx.play("boom", 1.0, -3.0)
 	fx.add_shake(8.0)
 	fx.add_punch(0.08)
-	world.flash(pos, Color("b8ff40"), 6.0)
+	world.flash(pos, ACID, 6.0)
 	main.on_kill(self, false)
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - pos

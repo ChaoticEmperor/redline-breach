@@ -113,6 +113,7 @@ static var _mats := {}
 const PX := 1.0 / 3.0
 const BAYER := [0.03125, 0.53125, 0.15625, 0.65625, 0.78125, 0.28125, 0.90625, 0.40625,
 		0.21875, 0.71875, 0.09375, 0.59375, 0.96875, 0.46875, 0.84375, 0.34375]
+const WARN := [Color("d4ff3a"), Color("7fd11c"), Color("14200a")] # blast-zone ring: acid green bright, mid, and its dark edge
 const HOT := [Color("fff3a6"), Color("ffe26b"), Color("ff8a2a"), Color("f2561d")] # hottest first
 const SLASH_RAMP := [Color("c8f6ff"), Color("05d9e8"), Color("1c7fa6")]
 const MUZZLE_LOBES := [[0.0, 11.0, 0.8], [0.0, 4.5, 1.7], [0.6, 5.5, 0.55], [-0.6, 5.5, 0.55]]
@@ -132,6 +133,7 @@ var parts: Array = [] # [pos, vel, life, color]
 var tracers: Array = [] # [a, b, life, color]
 var rings: Array = [] # [pos, radius, max_radius]
 var popups: Array = [] # [pos, text, life, color]
+var warns: Array = [] # [enemy, pos, radius]: the blast zone of a lit fuse, drawn until it bursts
 var flashes: Array = [] # [pos, life]
 var slashes: Array = [] # [pos, angle, life]
 var ghosts: Array = [] # [texture, pos, flipped, life]
@@ -837,6 +839,13 @@ func ring(pos: Vector2, max_r: float) -> void:
 	rings.append([pos, 4.0, max_r])
 
 
+## Marks the blast zone round a lit fuse: a ring at its exact reach plus a second
+## ring that closes in on the centre as the fuse burns, so the timer can be read.
+## The zone stays where it was marked: a warning that follows its source is not one.
+func warn(enemy, pos: Vector2, radius: float) -> void:
+	warns.append([enemy, pos, radius])
+
+
 func popup(pos: Vector2, text: String, col := Color(1, 1, 1)) -> void:
 	popups.append([pos, text, 0.8, col])
 
@@ -897,7 +906,8 @@ func _process(delta: float) -> void:
 	tracers = tracers.filter(func(t): return t[2] > 0.0)
 	rings = rings.filter(func(r): return r[1] < r[2])
 	popups = popups.filter(func(p): return p[2] > 0.0)
-	var busy := not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty()
+	warns = warns.filter(func(w): return is_instance_valid(w[0]) and not w[0].dead)
+	var busy := not warns.is_empty() or not (parts.is_empty() and tracers.is_empty() and rings.is_empty() and popups.is_empty()
 			and flashes.is_empty() and slashes.is_empty() and ghosts.is_empty() and shells.is_empty())
 	if busy or _was_busy:
 		queue_redraw()
@@ -999,6 +1009,28 @@ func _draw() -> void:
 				_dot(r[0] + dir * (r[1] + d), col, 0.3 + k * 1.2)
 				d += PX
 			a += PX / maxf(r[1], 1.0)
+	var now := Time.get_ticks_msec()
+	for w in warns:
+		var at: Vector2 = w[1]
+		var r: float = w[2]
+		var k: float = w[0].fuse_progress()
+		# The outer ring flashes faster as the burst nears; its dashes march round.
+		var on: bool = (now / int(lerpf(140.0, 45.0, k))) % 2 == 0
+		var col: Color = WARN[0] if on else WARN[1]
+		var n := int(TAU * r / PX)
+		var shift := int(now / 40) % 6
+		for i in n:
+			if (i + shift) % 6 < 4:
+				var d := Vector2.from_angle(TAU * i / n)
+				_dot(at + d * (r + PX * 2.0), WARN[2], 1.0, 2) # dark edge: reads on bright floors too
+				_dot(at + d * (r - PX), col, 1.0, 3)
+		# The inner ring closes in from the edge: the burst comes when it reaches the centre.
+		var ri := r * (1.0 - k)
+		if ri > 2.0:
+			var m := int(TAU * ri / PX)
+			for i in m:
+				if i % 3 != 2:
+					_dot(at + Vector2.from_angle(TAU * i / m) * ri, WARN[0], 1.0, 2)
 	for p in popups:
 		# Drawn at 4x size and scaled down so text stays sharp under the camera zoom.
 		draw_set_transform(p[0] + Vector2(-40, 0), 0.0, Vector2(0.25, 0.25))
