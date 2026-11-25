@@ -23,8 +23,8 @@ from pathlib import Path
 try:
     from PIL import Image
 except ImportError:  # pragma: no cover
-    print("import_cc0: Pillow is not installed (pip install Pillow); nothing imported.")
-    sys.exit(0)
+    from _deps import skip
+    sys.exit(skip("import_cc0: Pillow is not installed (pip install Pillow); nothing imported."))
 
 ROOT = Path(__file__).resolve().parent.parent
 PACK = ROOT / "assets" / "cc0" / "kenney_topdown_shooter"

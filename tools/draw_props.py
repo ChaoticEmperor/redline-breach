@@ -21,6 +21,7 @@ import math
 import sys
 
 from _atelier import K, ROOT, Canvas, atelier_binary, paint, ramp, rng_for
+from _deps import skip
 
 OUT = ROOT / "assets" / "sprites" / "props" / "sheet_props_v2.png"
 TABLE = ROOT / "scripts" / "prop_atlas.gd"
@@ -508,8 +509,7 @@ PROPS = {
 def main() -> int:
     binary = atelier_binary()
     if binary is None:
-        print("draw_props: atelier is not installed; nothing drawn, game falls back")
-        return 0
+        return skip("draw_props: atelier is not installed; nothing drawn, game falls back")
     drawn = {name: make() for name, make in PROPS.items()}
     width, pad = 512, 2
     x = y = shelf = 0

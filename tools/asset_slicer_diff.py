@@ -32,8 +32,8 @@ try:
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:  # pragma: no cover
-    print("asset_slicer_diff: Pillow and numpy are needed (pip install Pillow numpy); nothing done.")
-    sys.exit(0)
+    from _deps import skip
+    sys.exit(skip("asset_slicer_diff: Pillow and numpy are needed (pip install Pillow numpy); nothing done."))
 
 ROOT = Path(__file__).resolve().parent.parent
 CHAR_SHEET = "assets/sprites/chars/sheet_characters_v2.png"
