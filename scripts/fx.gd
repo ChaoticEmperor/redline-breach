@@ -45,7 +45,10 @@ const SPRITES := {
 ## Keep in step with HELD_* in tools/draw_weapons.py.
 const HELD_DIRS := 16
 const HELD_CELL := 64
-const HELD_REACH := {"pipe": 27.0, "pistol": 12.0, "shotgun": 24.0}
+const HELD_REACH := {"pipe": 27.0, "pistol": 12.0, "shotgun": 28.0}
+## How far the barrel's centre line is above the grip pixel, in sheet pixels (on the
+## weapon's upper side, which the tool keeps up-screen by mirroring left-aiming cells).
+const HELD_BORE := {"pipe": 0.0, "pistol": 4.0, "shotgun": 3.5}
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
 const ROOMS_Y := 3

@@ -101,7 +101,7 @@ HELD = {
     ],
 }
 
-HELD_GRIP = {"held_pipe": (4, 3), "held_pistol": (3, 6), "held_shotgun": (10, 6)}  # pixel held in the fist
+HELD_GRIP = {"held_pipe": (4, 3), "held_pistol": (3, 6), "held_shotgun": (6, 5)}  # pixel held in the fist
 HELD_DIRS = 16
 HELD_CELL = 64
 

@@ -3,7 +3,8 @@ extends CharacterBody2D
 ## is held in the body's front fist: its grip pixel sits on the fist, it shows
 ## the pre-drawn direction nearest the aim (never a rotated sprite, so it stays
 ## on the body's pixel grid), and the fist is drawn again on top of it so the
-## hand closes over the grip (draw order: body, weapon, hand). Movement, dash, silent pipe / loud guns,
+## hand closes over the grip (draw order: body, weapon, hand; aiming up-screen the
+## weapon goes behind the body instead). Movement, dash, silent pipe / loud guns,
 ## contextual kick / execute, and the grab-break window.
 
 const Fx = preload("res://scripts/fx.gd")
@@ -15,6 +16,9 @@ const DASH_TIME := 0.14
 const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
 const ZOOM := 6.0 # on the 1920x1080 canvas
+## Held-weapon directions (cells of the held sheet) that aim away from the viewer: up-left
+## through up-right. There the weapon is drawn behind the body. See _layer().
+const BACK_DIRS: Array[int] = [10, 11, 12, 13, 14]
 var art: Dictionary # sheet layout and scale, see Fx.art()
 var shoulder := Vector2(0, -13) # chest height, relative to the feet: where shots land on a body
 var hold := Vector2(0, -13) # where the weapon is held, relative to the feet: the fist, else the shoulder
@@ -51,6 +55,7 @@ var body: AnimatedSprite2D
 var arm: Node2D
 var wep: Sprite2D
 var hand: Sprite2D # the front fist, over the weapon
+var behind := false # the weapon is drawn behind the body (aiming up-screen)
 var muzzle_light: PointLight2D
 var cam: Camera2D
 
@@ -165,7 +170,8 @@ func _process(delta: float) -> void:
 		swing_t -= delta
 		swing = lerpf(1.4, -1.4, clampf(swing_t / 0.16, 0.0, 1.0)) * (-1.0 if aim.x < 0.0 else 1.0)
 	if grips:
-		wep.frame = posmod(roundi((aim.angle() + swing) / (TAU / Fx.HELD_DIRS)), Fx.HELD_DIRS)
+		wep.frame = shown_dir(swing)
+		_layer(BACK_DIRS.has(wep.frame))
 	else:
 		wep.flip_v = aim.x < 0.0
 		wep.rotation = swing
@@ -179,6 +185,24 @@ func _process(delta: float) -> void:
 	_hold()
 
 
+## The pre-drawn direction being shown for the aim (plus a swing): cell i of a held sheet,
+## pointing i * TAU / HELD_DIRS clockwise from right. The weapon frame, its draw order and
+## the muzzle all come from this, so effects leave the barrel that is on screen.
+func shown_dir(swing := 0.0) -> int:
+	return posmod(roundi((aim.angle() + swing) / (TAU / Fx.HELD_DIRS)), Fx.HELD_DIRS)
+
+
+## Draw order inside the player: shadow, body, weapon, hand; or, aiming away from the
+## viewer, shadow, weapon, body with the fist overlay hidden (the body's own fist covers
+## the grip). Done with child order: the player keeps z_index 0 for the world's Y-sort.
+func _layer(back: bool) -> void:
+	behind = back
+	if back and wep.get_index() > body.get_index():
+		move_child(wep, body.get_index())
+	elif not back and wep.get_index() < body.get_index():
+		move_child(wep, hand.get_index() - 1)
+
+
 ## Puts the weapon in the fist of the frame being shown and the fist over it.
 func _hold() -> void:
 	if not grips:
@@ -190,10 +214,11 @@ func _hold() -> void:
 	hand.frame = cell
 	hand.flip_h = body.flip_h
 	hand.position = body.position
-	hand.visible = at != Vector2.INF
-	arm.visible = hand.visible
-	wep.visible = hand.visible
-	if not hand.visible:
+	var held: bool = at != Vector2.INF
+	hand.visible = held and not behind
+	arm.visible = held
+	wep.visible = held
+	if not held:
 		return
 	# Whole sheet pixels, so the weapon stays on the body's pixel grid.
 	var px := Vector2(floorf(at.x) + 0.5 - art.cell / 2.0, floorf(at.y) + 0.5 - art.feet)
@@ -333,11 +358,17 @@ func _fire() -> void:
 	ammo[weapon] -= 1
 	var heavy := weapon == "shotgun"
 	var reach: float = Fx.HELD_REACH[weapon] * art.scale if grips else 13.0
-	var muzzle := global_position + hold + aim * reach
+	# From the barrel of the direction being shown, not the exact aim; the shots themselves
+	# are cast along the exact aim.
+	var shown := Vector2.from_angle(shown_dir() * TAU / Fx.HELD_DIRS) if grips else aim
+	var muzzle := global_position + hold + shown * reach
+	if grips:
+		# The bore runs above the grip; left-aiming cells are the mirrored drawing (draw_weapons.py).
+		muzzle += shown.orthogonal() * Fx.HELD_BORE[weapon] * art.scale * (-1.0 if shown.x < -0.001 else 1.0)
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
 	fx.casing(global_position + hold, aim)
-	fx.flash(muzzle, aim)
+	fx.flash(muzzle, shown)
 	muzzle_light.energy = 2.5
 	recoil = 5.0 if heavy else 3.0
 	fx.play(weapon)

@@ -128,7 +128,8 @@ func _run() -> void:
 	if p.grips:
 		ok(is_equal_approx(p.wep.scale.x, p.body.scale.x) and p.wep.modulate == p.body.modulate and p.wep.light_mask == p.body.light_mask,
 			"held weapon shares the body's pixel size, tint and light layer")
-		ok(p.hand.get_index() > p.wep.get_index() and p.wep.get_index() > p.body.get_index(), "draw order is body, weapon, hand")
+		ok(not p.behind and p.hand.get_index() > p.wep.get_index() and p.wep.get_index() > p.body.get_index(),
+			"draw order is body, weapon, hand when not aiming up-screen")
 		ok(p.wep.rotation == 0.0 and p.wep.hframes == Fx.HELD_DIRS and p.wep.get_parent() == p,
 			"the held weapon shows a pre-drawn direction and is never rotated")
 		var fist: Vector2 = Fx.hand_anchors()[p.hand.frame]
@@ -184,6 +185,36 @@ func _run() -> void:
 	c.fire = false
 	ok(p.ammo.pistol < rounds, "pistol consumes ammo")
 	ok(_awake() > awake, "gunshot alerts zombies in other rooms (%d woke)" % (_awake() - awake))
+
+	# Aiming away from the viewer the weapon goes behind the body and the fist overlay is hidden;
+	# effects leave the barrel of the direction being shown, not the exact aim.
+	if p.grips:
+		var shadow_at: int = p.get_child(1).get_index()
+		c.aim = Vector2.UP
+		await frames(3)
+		ok(p.BACK_DIRS.has(p.wep.frame) and p.behind and p.wep.visible and not p.hand.visible
+			and p.wep.get_index() < p.body.get_index() and p.wep.get_index() > shadow_at and p.z_index == 0,
+			"aiming up-screen the weapon is drawn behind the body, over the shadow, with no fist overlay")
+		var arc_ok := true
+		for i in Fx.HELD_DIRS:
+			var up: bool = sin(i * TAU / Fx.HELD_DIRS) < -0.5
+			arc_ok = arc_ok and p.BACK_DIRS.has(i) == up
+		ok(arc_ok, "the back arc is the directions more than 30 degrees up-screen")
+		c.aim = Vector2.from_angle(0.3)
+		await frames(3)
+		ok(not p.behind and p.hand.visible and p.hand.get_index() > p.wep.get_index() and p.wep.get_index() > p.body.get_index(),
+			"aiming across or down-screen the order is body, weapon, hand again")
+		p.ammo.pistol += 1
+		p.cd = 0.0
+		p._fire()
+		var flash: Array = w.fx.flashes.back()
+		var shown: Vector2 = Vector2.from_angle(p.wep.frame * TAU / Fx.HELD_DIRS)
+		var from_grip: Vector2 = flash[0] - (p.global_position + p.hold)
+		ok(p.shown_dir() == p.wep.frame and flash[2].distance_to(shown) < 0.001 and absf(shown.angle_to(p.aim)) > 0.05
+			and from_grip.distance_to((shown * Fx.HELD_REACH.pistol + shown.orthogonal() * Fx.HELD_BORE.pistol) * p.art.scale) < 0.01,
+			"the muzzle flash leaves the barrel of the shown direction, not the exact aim")
+		c.aim = Vector2.RIGHT
+		await frames(3)
 
 	# Shoot one dead.
 	var e = _pick(["shambler"])
