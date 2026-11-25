@@ -56,6 +56,7 @@ var base_scale := 0.5
 var lit := Color.WHITE # the body's normal modulate: its own colours, unaffected by room lights
 var skin := "shambler"
 var notice_t := 0.0
+var art: Dictionary # sheet layout and scale of this skin, see Fx.art()
 
 
 func setup(p_main, p_world, p_player, p_kind: String) -> void:
@@ -81,18 +82,19 @@ func setup(p_main, p_world, p_player, p_kind: String) -> void:
 	shadow.texture = Fx.tex("shadow")
 	shadow.scale = Vector2.ONE * (radius / 5.0)
 	add_child(shadow)
-	base_scale = Fx.ART_SCALE * st.size
 	body = AnimatedSprite2D.new()
 	# Shamblers come in two looks; the club's dancefloor crowd is the second.
 	skin = "horde" if kind == "shambler" and randf() < 0.5 else kind
+	art = Fx.art(skin)
+	base_scale = art.scale * st.size
 	body.sprite_frames = Fx.frames(skin)
 	body.scale = Vector2.ONE * base_scale
-	body.offset = Vector2(0, -28) # feet (row 60 of the 64px cell) sit on the node
+	body.offset = Vector2(0, art.cell / 2.0 - art.feet) # the feet row sits on the node
 	lit = world.actor_tint()
 	body.modulate = lit
 	body.light_mask = ACTOR_LIGHT
 	body.play("walk")
-	body.frame = randi() % 4
+	body.frame = randi() % body.sprite_frames.get_frame_count("walk")
 	add_child(body)
 	think_t = randf() * 0.2
 	world.enemy_list.append(self)
@@ -319,7 +321,7 @@ func _die(dir: Vector2, executed := false) -> void:
 	world.enemy_list.erase(self)
 	player.grabbers.erase(self)
 	# The body drops away from the killing blow and its pool keeps spreading.
-	fx.corpse(Fx.frame_tex(skin, "down", 0), global_position, dir.x > 0.0 if absf(dir.x) > 0.1 else body.flip_h, STATS[kind].size)
+	fx.corpse(skin, global_position, dir.x > 0.0 if absf(dir.x) > 0.1 else body.flip_h, STATS[kind].size)
 	fx.blood(global_position, dir, 14)
 	fx.pool(global_position)
 	fx.play("die")
@@ -349,7 +351,7 @@ func _explode() -> void:
 	dead = true
 	world.enemy_list.erase(self)
 	var pos := global_position
-	fx.corpse(Fx.frame_tex(kind, "down", 0), pos, false, STATS[kind].size)
+	fx.corpse(skin, pos, false, STATS[kind].size)
 	fx.acid(pos, BLAST)
 	fx.blood(pos, Vector2.ZERO, 40, 40.0)
 	fx.ring(pos, BLAST)

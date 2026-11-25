@@ -8,6 +8,7 @@ const MAX_DECALS := 320 # per room
 const SPRITE_DIR := "res://assets/sprites/"
 const SPRITE_PX := 4.0
 const PropAtlas = preload("res://scripts/prop_atlas.gd")
+const InfectedAtlas = preload("res://scripts/infected_atlas.gd")
 const CELL := 64          # one pose in the character sheet
 const ART_SCALE := 0.5    # character sheet pixels -> world pixels (same pixel size as the props)
 # who -> [sheet row, {animation: [first frame, frames, fps, loops]}]
@@ -34,6 +35,9 @@ const SPRITES := {
 	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
 	# Its normal map, same layout, from the forms' true normals (tools/draw_props.py).
 	"props_v2_n": "props/sheet_props_v2_n",
+	# The infected, packed from hand-made animation sheets (tools/import_infected.py).
+	"infected_shambler": "chars/infected_shambler", "infected_horde": "chars/infected_horde",
+	"infected_runner": "chars/infected_runner", "infected_bloater": "chars/infected_bloater",
 	# The player, converted from a reference image (tools/convert_reference.py).
 	"player_v3": "chars/sheet_player_v3",
 	# Its front fist alone (same layout), drawn over the held weapon so the hand grips it.
@@ -290,8 +294,12 @@ static func frames(who: String) -> SpriteFrames:
 		var sf := SpriteFrames.new()
 		sf.remove_animation("default")
 		var a := art(who)
-		var row: int = 0 if a.sheet == "player_v3" else ANIMS[who][0]
-		var anims: Dictionary = PLAYER_V3 if a.sheet == "player_v3" else ANIMS[who][1]
+		var row: int = ANIMS[who][0] if a.sheet == "chars_v2" else 0
+		var anims: Dictionary = ANIMS[who][1]
+		if a.sheet == "player_v3":
+			anims = PLAYER_V3
+		elif a.sheet != "chars_v2":
+			anims = InfectedAtlas.ANIMS[who]
 		for anim in anims:
 			var d: Array = anims[anim]
 			sf.add_animation(anim)
@@ -308,10 +316,16 @@ static func frames(who: String) -> SpriteFrames:
 
 ## How a character's sheet is laid out and shown: sheet name, cell size, scale to
 ## world pixels, the row its feet stand on, its height and shoulder height in
-## sheet pixels. The player uses the converted sheet when that file exists.
+## sheet pixels. The player uses the converted sheet when that file exists, and an
+## infected skin its packed sheet (same pixel size as the player); anything
+## without one falls back to the code-drawn character sheet.
 static func art(who: String) -> Dictionary:
 	if who == "player" and has_sprite("player_v3"):
 		return {"sheet": "player_v3", "cell": 96, "scale": 1.0 / 3.0, "feet": 90, "height": 78, "shoulder": 37}
+	if InfectedAtlas.ANIMS.has(who) and has_sprite("infected_" + who):
+		var h: int = InfectedAtlas.HEIGHT[who]
+		return {"sheet": "infected_" + who, "cell": InfectedAtlas.CELL, "scale": 1.0 / 3.0, "feet": InfectedAtlas.FEET,
+				"height": h, "shoulder": h / 2}
 	return {"sheet": "chars_v2", "cell": CELL, "scale": ART_SCALE, "feet": 60, "height": 42, "shoulder": 26}
 
 
@@ -798,9 +812,12 @@ func shards(pos: Vector2) -> void:
 
 ## Leaves a sprawled body (a frame from the character sheet) on the floor.
 ## `pos` is where the feet were; `flipped` mirrors it away from the blow.
-func corpse(texture: Texture2D, pos: Vector2, flipped: bool, size := 1.0) -> void:
-	var s := ART_SCALE * size
-	_add([1, pos + Vector2(0, -28.0 * s), texture, randf_range(-0.12, 0.12), Color.WHITE, Vector2(-s if flipped else s, s)])
+## The downed pose of `who` left on the floor where it fell.
+func corpse(who: String, pos: Vector2, flipped: bool, size := 1.0) -> void:
+	var a := art(who)
+	var s: float = a.scale * size
+	_add([1, pos + Vector2(0, (a.cell / 2.0 - a.feet) * s), frame_tex(who, "down", 0), randf_range(-0.12, 0.12),
+			Color.WHITE, Vector2(-s if flipped else s, s)])
 
 
 ## Any texture as a floor decal (a broken door, debris).
