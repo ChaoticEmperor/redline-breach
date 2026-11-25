@@ -181,6 +181,14 @@ tools/run_polisher.sh after         # same again; the brief gains a Before colum
 - `tools/` — art generators (see above). `assets/` — raw sheets, the CC0 pack and generated sprites.
   `web_template/` — HTML shell, PWA manifest, icons.
 - `tests/smoke_test.gd` — headless test; drives the game through `controls.override`.
+- `tools/playbot.gd` — play-test bot (needs a display): plays seed 1989 through `controls.override` and logs
+  kills, deaths and causes. Run it before and after a gameplay change and compare.
+
+## Gameplay design
+
+Load the `gameplay-craft` skill before changing combat, enemies, noise, weapons, scoring, the HUD or menus, the
+camera or level pacing. It holds the design principles we work from, REDLINE's status against each, and the
+build order. Rebuild ideas in our own way; never copy another game's code, art, sound, text or levels.
 
 ## Conventions
 
