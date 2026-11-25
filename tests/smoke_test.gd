@@ -150,6 +150,12 @@ func _run() -> void:
 		if z.art.sheet != "chars_v2":
 			sized = sized and is_equal_approx(z.art.scale, p.art.scale) and absf(z.art.height - p.art.height) <= p.art.height * 0.12
 	ok(sized, "infected sheets match the player's pixel size and height (within 12%), with walk, lunge and down poses")
+	var floor_ok := true
+	for pk in w.pickups:
+		var spx: float = pk.node.scale.x * p.ZOOM
+		var tiles: float = pk.node.texture.get_width() * pk.node.scale.x / 16.0
+		floor_ok = floor_ok and is_equal_approx(spx, roundf(spx)) and tiles > 0.4 and tiles < 1.25
+	ok(floor_ok and w.pickups.size() >= 2, "floor weapons are whole screen pixels per art pixel and 0.4-1.25 tiles long")
 	var lit: Color = w._unlit * w.AMBIENT
 	ok(absf(lit.r - 1.0) < 0.01 and absf(lit.g - 1.0) < 0.01 and absf(lit.b - 1.0) < 0.01 and w.AMBIENT.get_luminance() < 0.35,
 		"ambient stays dim and the unlit modulate cancels it")
@@ -208,6 +214,10 @@ func _run() -> void:
 	await frames(6)
 	c.fire = false
 	ok(_awake() == awake, "pipe swing is silent")
+	var arc: float = p.SWING_ARC
+	ok(is_equal_approx(p.swing_angle(0.0), -arc) and is_equal_approx(p.swing_angle(0.3), arc) and is_equal_approx(p.swing_angle(0.45), arc)
+			and absf(p.swing_angle(0.75)) < arc and is_zero_approx(p.swing_angle(1.0)) and p.SWING_TIME < p.WEAPONS.pipe.cd,
+		"a swing strikes fast, holds at full extension, then recovers before the next one")
 	if p.grips:
 		var off: Vector2 = (p.wep.position - p.hold) / p.art.scale
 		ok(p.wep.rotation == 0.0 and off.distance_to(off.round()) < 0.01, "the weapon stays unrotated and on whole art pixels through a swing")

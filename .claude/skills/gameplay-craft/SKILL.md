@@ -15,9 +15,18 @@ description: >
 These are principles, not a recipe. Each one says what it is for, so you can
 judge when it applies. They were learned by reading how a celebrated game in
 this genre is put together, then rewritten in our own words. A second study
-(an MIT-licensed Godot action RPG) added the rules marked *(study 2)*. **Never copy
-another game's code, numbers-as-a-set, art, sound, text or levels.** Take the
-idea, rebuild it for REDLINE, then measure it.
+(an MIT-licensed Godot action RPG) added the rules marked *(study 2)*. A third
+measured a reference sprite set (sizes, frame counts, how much each frame
+changes) and added section 9 *(study 3)*. **Never copy another game's code,
+numbers-as-a-set, art, sound, text or levels.** Take the idea, rebuild it for
+REDLINE, then measure it.
+
+**Reference art is for measuring, not for making.** A sprite set from another
+game may be opened to count frames, measure sizes against a tile or a body, and
+see how a motion is split into frames. Its pixels are never traced, recoloured,
+converted, cropped into ours or committed to the repo, renamed or not. What
+goes into REDLINE is drawn for REDLINE (our tools, our references, or packs
+whose licence allows it), built to the ratios and budgets in section 9.
 
 ## 0. How to work
 
@@ -144,6 +153,81 @@ The player must always be able to say why they died.
 - **Show the aftermath.** Walking back past your own mess is storytelling the
   player wrote.
 
+## 9. Scale and animation baseline *(study 3)*
+
+Ratios, not pixels: everything is given against a **tile** (a door's width) or
+a **body** (shoulder width), so it carries over to our 3/4 view and pixel size.
+Measure a new asset against these before wiring it.
+
+### Scale
+
+- **A door is one tile and a body is about three quarters of it.** The gap
+  either side of a body in a doorway is what makes doors a choke point without
+  making them a snag. *REDLINE: door 1 tile; player about 0.55 tile wide and
+  1.6 tall in 3/4 view, collision 0.6 tile. Fine; corner rounding covers the
+  rest.*
+- **The screen shows about 15 x 8 tiles.** Close enough that a body is a real
+  shape, far enough to see the next room's door. *REDLINE: 20 x 11 tiles
+  (`ZOOM` 6). Wider than the baseline; the look-far key (section 1) would let
+  us zoom in. Open.*
+- **Furniture is not tile-sized.** Stools and chairs are about half a tile,
+  armchairs three quarters, tables one to two tiles long and under a tile
+  deep, beds and pool tables about two, a car over three. Mixed sizes are what
+  make a room read as a place and give cover of different widths. *REDLINE:
+  every small prop is exactly one tile wide (stool, table, chairs, toilet,
+  crate). Open: redraw the small props to their real widths.*
+- **A weapon on the floor is half a tile to one tile long:** knives and
+  pistols about 0.4-0.5, long guns and clubs 0.8-1.0, roughly a body's width.
+  Big enough to find at a glance, small enough not to read as furniture.
+  *REDLINE: done (`PICKUP_SCALE`: pistol 0.54, pipe 0.9, shotgun 1.1, at whole
+  screen pixels; asserted).*
+- **Small things are small:** a casing is a tenth of a tile, a bullet streak
+  about half a tile.
+- **Pieces of one actor share one pixel size** (see `pixel-art-engineer`
+  section 9). Scale changes the on-screen size of a pixel, never the art.
+
+### How an animation is built
+
+Count frames by what the motion needs, and spend them unevenly.
+
+- **Walk: 8 frames**, with the two foot-plants the biggest changes and the
+  frames between them even. Legs can run on their own longer cycle. *REDLINE:
+  infected 7-12 frames, done; player 4. Open: an 8-frame player walk needs a
+  new reference.*
+- **A melee swing is ready, strike, hold, recover** in 7-9 frames (heavy
+  weapons up to 13): one or two very different frames carry the weapon to full
+  extension, **one frame is held there** (nothing moves: that is where the hit
+  reads), three or four frames bring it back, and a last near-identical frame
+  settles. Never an even sweep. *REDLINE: the pipe has no body frames, but its
+  sweep follows this shape (`Player.swing_angle`: strike in the first third,
+  hold, slower return; asserted). Body frames are open.*
+- **A gunshot is 2-3 frames** (flash, kick, back). **A slow gun shows its
+  recovery:** the pump shotgun kicks for three frames, then holds almost still
+  for eight. The fire-rate lock is something you see, not just a timer.
+  *REDLINE: recoil slide only; the shotgun's 0.75s lock is invisible. Open.*
+- **Getting up is 7 frames with the biggest change first** (the body leaves
+  the floor at once, then rights itself evenly). **Crawling stops and starts:**
+  a few moving frames, then two or three held. *REDLINE: none; a downed
+  infected snaps upright. Open.*
+- **Deaths are sized by the blow.** A gunshot drop is about 4 frames. A blunt
+  kill is 10-15: big changes as the body goes, then small "settling" frames,
+  often a late twitch. One still pose per kind of death stays as the corpse.
+  *REDLINE: one downed pose per skin. Open (section 5).*
+- **Breaking things decay:** a door or window shatters over about 10 frames,
+  each changing less than the last.
+- **Effects are short:** sparks and blood bursts 7-8 frames, smoke 9, a bullet
+  hit 11. Ambient loops are long (a dance floor about 35) so the repeat is not
+  seen.
+- **Variety is counted in sprites, not recolours:** dozens of distinct floor
+  weapons and death poses. Add a new one only with its own silhouette.
+
+### How to measure
+
+For a sheet of frames, compare each frame with the one before: the share of
+pixels that changed is its "weight". Strikes and foot-plants should be the
+heavy frames, holds should be zero, settles a few percent. A cycle whose
+frames all weigh the same reads as floaty.
+
 ## 8. Build order for REDLINE
 
 1. Bloater fuse warning (readable danger, section 2). *Done.*
@@ -159,4 +243,7 @@ only darken) and warm that shader at floor build so the web build does not
 stall on the first hit *(study 2)*, staggered chain-reaction fuses,
 boldness bonus, easing hit-stop in chains, look-far key, corpse poses
 by kill type, animation speed from velocity, menu text effects, chapter frame.
+From section 9: small props at their real widths, a visible shotgun recovery,
+a get-up for downed infected, death sequences sized by the blow, body frames
+for the swing, an 8-frame player walk, a closer camera.
 Update the status lines above when one lands.
