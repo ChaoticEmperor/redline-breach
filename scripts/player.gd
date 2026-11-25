@@ -1,6 +1,8 @@
 extends CharacterBody2D
-## The player: 3/4-view animated body that flips to face the aim, with a
-## weapon arm that rotates freely. Movement, dash, silent pipe / loud guns,
+## The player: 3/4-view animated body that flips to face the aim. The weapon
+## is held in the body's front fist and turns about its grip; the fist is drawn
+## again on top of it so the hand closes over the grip (draw order: body,
+## weapon, hand). Movement, dash, silent pipe / loud guns,
 ## contextual kick / execute, and the grab-break window.
 
 const Fx = preload("res://scripts/fx.gd")
@@ -13,8 +15,10 @@ const DASH_CD := 0.7
 const GRAB_WINDOW := 0.4
 const ZOOM := 6.0 # on the 1920x1080 canvas
 var art: Dictionary # sheet layout and scale, see Fx.art()
-var shoulder := Vector2(0, -13) # weapon arm pivot, relative to the feet
-const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # held weapon sprite scale
+var shoulder := Vector2(0, -13) # chest height, relative to the feet: where shots land on a body
+var hold := Vector2(0, -13) # where the weapon is held, relative to the feet: the fist, else the shoulder
+var grips := false # the weapon sits in the fist (Fx.can_grip()); otherwise it floats at the shoulder
+const HELD := {"pipe": 0.34, "pistol": 0.3, "shotgun": 0.36} # weapon sprite scale when it is not gripped
 const WEAPONS := {
 	"pipe": {"cd": 0.34, "loud": 0.0},
 	"pistol": {"cd": 0.2, "pellets": 1, "spread": 0.025, "dmg": 2, "range": 420.0, "loud": 400.0, "pickup": 10},
@@ -45,6 +49,7 @@ var ghost_t := 0.0
 var body: AnimatedSprite2D
 var arm: Node2D
 var wep: Sprite2D
+var hand: Sprite2D # the front fist, over the weapon
 var muzzle_light: PointLight2D
 var cam: Camera2D
 
@@ -82,6 +87,19 @@ func setup(p_main, p_world, p_controls) -> void:
 	wep.modulate = world.actor_tint(1.0)
 	wep.light_mask = 2
 	arm.add_child(wep)
+	grips = Fx.can_grip()
+	if grips:
+		# Same sheet layout, scale, tint and light layer as the body, so the two cannot drift apart.
+		hand = Sprite2D.new()
+		hand.texture = Fx.tex("player_v3_hand")
+		hand.hframes = hand.texture.get_width() / int(art.cell)
+		hand.scale = body.scale
+		hand.offset = body.offset
+		hand.modulate = body.modulate
+		hand.light_mask = 2
+		add_child(hand)
+		# The body advances its own frames after this node's _process; follow at once, not a frame late.
+		body.frame_changed.connect(_hold)
 	# Flashlight beam along the aim, a small pool of light around the body,
 	# and a muzzle flash light that fires for a few frames per shot.
 	var beam := PointLight2D.new()
@@ -108,6 +126,7 @@ func setup(p_main, p_world, p_controls) -> void:
 	cam = Camera2D.new()
 	add_child(cam)
 	_set_weapon("pipe")
+	_hold()
 
 
 func _ready() -> void:
@@ -138,7 +157,6 @@ func _process(delta: float) -> void:
 		return
 	body.flip_h = aim.x < 0.0
 	arm.rotation = aim.angle()
-	arm.position = shoulder - aim * recoil
 	wep.flip_v = aim.x < 0.0
 	if swing_t > 0.0:
 		swing_t -= delta
@@ -152,6 +170,35 @@ func _process(delta: float) -> void:
 		anim = "run"
 	if body.animation != anim:
 		body.play(anim)
+	_hold()
+
+
+## Puts the weapon in the fist of the frame being shown and the fist over it.
+func _hold() -> void:
+	if not grips:
+		hold = shoulder
+		arm.position = shoulder - aim * recoil
+		return
+	var cell: int = Fx.PLAYER_V3[body.animation][0] + body.frame
+	var at: Vector2 = Fx.hand_anchors()[cell]
+	hand.frame = cell
+	hand.flip_h = body.flip_h
+	hand.position = body.position
+	hand.visible = at != Vector2.INF
+	arm.visible = hand.visible
+	if not hand.visible:
+		return
+	# Whole sheet pixels, so the weapon stays on the body's pixel grid.
+	var px := Vector2(floorf(at.x) + 0.5 - art.cell / 2.0, floorf(at.y) + 0.5 - art.feet)
+	if body.flip_h:
+		px.x = -px.x
+	hold = px * art.scale + body.position
+	# The fist stays put, so the weapon only slides a pixel or two in it on recoil.
+	arm.position = hold - aim * recoil * 0.25
+	var grip: Vector2 = Fx.HELD_GRIP[weapon] + Vector2(0.5, 0.5)
+	if wep.flip_v:
+		grip.y = wep.texture.get_height() - grip.y
+	wep.offset = -grip
 
 
 func _physics_process(delta: float) -> void:
@@ -244,7 +291,13 @@ func give(kind: String) -> void:
 
 func _set_weapon(kind: String) -> void:
 	weapon = kind
-	# Side-view weapon held at the shoulder; its grip sits on the pivot.
+	if grips:
+		# Drawn at the body's pixel size; _hold() sets the offset so the grip sits in the fist.
+		wep.texture = Fx.tex("held_" + kind)
+		wep.centered = false
+		wep.scale = Vector2.ONE * art.scale
+		return
+	# No fist art: the side-view weapon floats at the shoulder, its grip on the pivot.
 	wep.texture = Fx.tex("hud_" + kind)
 	wep.scale = Vector2.ONE * HELD[kind] * (1.0 if Fx.has_sprite("hud_" + kind) else 3.0)
 	wep.offset = Vector2(wep.texture.get_width() * 0.32, 0)
@@ -273,10 +326,11 @@ func _fire() -> void:
 		return
 	ammo[weapon] -= 1
 	var heavy := weapon == "shotgun"
-	var muzzle := global_position + shoulder + aim * 13.0
+	var reach: float = (wep.texture.get_width() - Fx.HELD_GRIP[weapon].x) * art.scale if grips else 13.0
+	var muzzle := global_position + hold + aim * reach
 	for i in w.pellets:
 		_bullet(muzzle, aim.rotated(randf_range(-w.spread, w.spread)), w.range, w.dmg)
-	fx.casing(global_position + shoulder, aim)
+	fx.casing(global_position + hold, aim)
 	fx.flash(muzzle)
 	muzzle_light.energy = 2.5
 	recoil = 5.0 if heavy else 3.0
@@ -318,7 +372,7 @@ func _bullet(muzzle: Vector2, dir: Vector2, reach: float, dmg: int) -> void:
 func _swing() -> void:
 	swing_t = 0.16
 	fx.play("swing")
-	fx.slash(global_position + shoulder, aim.angle())
+	fx.slash(global_position + hold, aim.angle())
 	var landed := false
 	for e in world.enemy_list.duplicate():
 		var d: Vector2 = e.global_position - global_position
@@ -430,6 +484,8 @@ func die(cause: String) -> void:
 	body.position = Vector2.ZERO
 	body.play("death")
 	arm.visible = false
+	if hand != null:
+		hand.visible = false
 	fx.blood(global_position, Vector2.ZERO, 40, 22.0)
 	fx.pool(global_position)
 	fx.play("die", 0.7)

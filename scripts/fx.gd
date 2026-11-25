@@ -34,7 +34,13 @@ const SPRITES := {
 	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
 	# The player, converted from a reference image (tools/convert_reference.py).
 	"player_v3": "chars/sheet_player_v3",
+	# Its front fist alone (same layout), drawn over the held weapon so the hand grips it.
+	"player_v3_hand": "chars/sheet_player_v3_hand",
+	# Held weapons at the player sheet's pixel size and palette (tools/draw_weapons.py).
+	"held_pipe": "weapons/held_pipe", "held_pistol": "weapons/held_pistol", "held_shotgun": "weapons/held_shotgun",
 }
+## Pixel of each held weapon that sits in the fist. Keep in step with HELD in tools/draw_weapons.py.
+const HELD_GRIP := {"pipe": Vector2(4, 3), "pistol": Vector2(3, 6), "shotgun": Vector2(10, 6)}
 const BLOOD := [Color("8e0b1c"), Color("b3122a"), Color("6a0714")]
 const ROOMS_X := 4
 const ROOMS_Y := 3
@@ -96,6 +102,7 @@ const PLAYER_V3 := {"idle": [0, 2, 2.2, true], "run": [2, 4, 8.5, true], "kick":
 static var _paths := {}
 static var _frames := {}
 static var _props := {}
+static var _hands: Array = []
 
 var world
 var decal_nodes: Array = [] # one canvas per room (keeps each under the light limit)
@@ -283,6 +290,32 @@ static func art(who: String) -> Dictionary:
 	if who == "player" and has_sprite("player_v3"):
 		return {"sheet": "player_v3", "cell": 96, "scale": 1.0 / 3.0, "feet": 90, "height": 78, "shoulder": 37}
 	return {"sheet": "chars_v2", "cell": CELL, "scale": ART_SCALE, "feet": 60, "height": 42, "shoulder": 26}
+
+
+## True when the player has the art to hold a weapon in its fist: the hand sheet
+## and the three weapons drawn at the same pixel size. Otherwise the weapon is
+## drawn the old way, floating at the shoulder.
+static func can_grip() -> bool:
+	return art("player").sheet == "player_v3" and has_sprite("player_v3_hand") \
+			and has_sprite("held_pipe") and has_sprite("held_pistol") and has_sprite("held_shotgun")
+
+
+## Centre of the fist in each cell of the hand sheet, in sheet pixels from the
+## cell's top-left; Vector2.INF for a cell with no hand (lying down).
+static func hand_anchors() -> Array:
+	if _hands.is_empty():
+		var im: Image = img("player_v3_hand")
+		var cell: int = art("player").cell
+		for f in im.get_width() / cell:
+			var sum := Vector2.ZERO
+			var n := 0
+			for y in cell:
+				for x in cell:
+					if im.get_pixel(f * cell + x, y).a > 0.5:
+						sum += Vector2(x + 0.5, y + 0.5)
+						n += 1
+			_hands.append(sum / n if n > 0 else Vector2.INF)
+	return _hands
 
 
 static func frame_tex(who: String, anim: String, i: int) -> Texture2D:

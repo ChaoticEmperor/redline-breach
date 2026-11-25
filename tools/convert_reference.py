@@ -17,7 +17,8 @@ export.
 Output: assets/sprites/chars/sheet_player_v3.png, 96x96 cells, the figure
 about 78 pixels tall facing right with its feet on row 90:
   0-1 idle (breathing)   2-5 walk   6 kick   7 down
-Keep that in step with PLAYER_V3 in scripts/fx.gd. The Atelier document is
+Keep that in step with PLAYER_V3 in scripts/fx.gd. The front fist is its own layer and is also
+exported alone as sheet_player_v3_hand.png (same layout): the game draws it over the held weapon. The Atelier document is
 kept in tools/out/atelier/ (git-ignored) so it can be inspected and fixed by
 region. Exits 0 without writing anything if Atelier or the reference is
 missing (the game then uses the older player art).
@@ -43,6 +44,8 @@ from _atelier import ROOT, atelier_binary
 SPEC = {
     "source": ROOT / "assets" / "raw" / "player_reference.png",
     "out": ROOT / "assets" / "sprites" / "chars" / "sheet_player_v3.png",
+    # the front fist alone, same layout: the game draws it over the held weapon so the hand grips it
+    "hand_out": ROOT / "assets" / "sprites" / "chars" / "sheet_player_v3_hand.png",
     "cell": 96,
     "feet": 90,
     "backdrop": (27, 23, 37),
@@ -171,6 +174,41 @@ def definition(pal, rgba, top=0.1, bottom=0.44):
     return float((d > 30).mean() * 100)
 
 
+def front_fist(rgb, opaque):
+    """Mask of the leading fist: the skin patch furthest right that is not the face or neck,
+    plus the dark outline pixels around it. Empty when the pose shows no such hand."""
+    r, g, b = (rgb[..., i].astype(int) for i in range(3))
+    skin = opaque & (r > 140) & (b > 60) & (r > g + 20) & (g > b)
+    todo, parts = skin.copy(), []
+    for y, x in zip(*np.where(skin)):
+        if not todo[y, x]:
+            continue
+        todo[y, x] = False
+        stack, pts = [(y, x)], []
+        while stack:
+            cy, cx = stack.pop()
+            pts.append((cy, cx))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < skin.shape[0] and 0 <= nx < skin.shape[1] and todo[ny, nx]:
+                        todo[ny, nx] = False
+                        stack.append((ny, nx))
+        parts.append(pts)
+    parts.sort(key=len)
+    hands = [p for p in parts[:-1] if len(p) >= 15]          # the largest patch is the face
+    mask = np.zeros_like(skin)
+    if not hands:
+        return mask
+    for y, x in max(hands, key=lambda p: max(q[1] for q in p)):
+        mask[y, x] = True
+    ring = np.zeros_like(mask)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            ring |= np.roll(np.roll(mask, dy, 0), dx, 1)
+    return mask | (ring & opaque & (rgb.mean(-1) < 40))
+
+
 # ------------------------------------------------------------------ atelier
 
 def make_caller(binary):
@@ -211,7 +249,7 @@ def main() -> int:
     doc = call("doc_new", name="player_v3", width=cell, height=cell)["doc_id"]
     call("doc_palette", op="set", doc_id=doc, colors=hexes)
     call("doc_layer", op="rename", doc_id=doc, index=0, name="legs")
-    for layer in ("torso", "head"):
+    for layer in ("torso", "head", "hand"):
         call("doc_layer", op="add", doc_id=doc, name=layer)
     for _ in SPEC["frames"][1:]:
         call("doc_frame", op="add", doc_id=doc)
@@ -247,7 +285,9 @@ def main() -> int:
                     layer_of[y, x] = 0
                 else:
                     layer_of[y, x] = 2 if y < int(h * 0.38) else 1
-        for layer in range(3):
+        if name != "down":
+            layer_of[front_fist(pal[np.maximum(idx, 0)], idx >= 0)] = 3
+        for layer in range(4):
             ys, xs = np.where(layer_of == layer)
             if len(ys) == 0:
                 continue
@@ -293,6 +333,13 @@ def main() -> int:
     SPEC["out"].parent.mkdir(parents=True, exist_ok=True)
     call("doc_export", doc_id=doc, op="sheet", scale=1, out_path=str(SPEC["out"]))
     SPEC["out"].with_suffix(".json").unlink(missing_ok=True)
+    for layer in range(3):
+        call("doc_layer", op="set", doc_id=doc, index=layer, visible=False)
+    call("doc_export", doc_id=doc, op="sheet", scale=1, out_path=str(SPEC["hand_out"]))
+    SPEC["hand_out"].with_suffix(".json").unlink(missing_ok=True)
+    for layer in range(3):
+        call("doc_layer", op="set", doc_id=doc, index=layer, visible=True)
+    print(f"  chars/{SPEC['hand_out'].name}  (the 'hand' layer alone)")
     sheet = Image.open(SPEC["out"])
     print(f"  chars/{SPEC['out'].name}  {sheet.width}x{sheet.height}  (document {doc} kept in tools/out/atelier)")
     if failed:
