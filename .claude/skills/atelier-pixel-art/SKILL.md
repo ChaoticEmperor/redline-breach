@@ -46,8 +46,8 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 | --- | --- | --- |
 | `tools/draw_characters.py` | player and infected animation sheet (64x64 cells) | posed skeletons rendered as lit forms |
 | `tools/draw_props.py` | 3/4 props, glass, signs, alarm lamp, packed into one atlas | one function per prop |
-| `tools/draw_weapons.py` | weapons: side views and top-down views | character grids, one character per pixel |
-| `tools/convert_reference.py` | the player sheet (96x96 cells), converted from `assets/raw/player_reference.png` | recovers the reference's pixels and rebuilds them in Atelier with gates |
+| `tools/draw_weapons.py` | weapons: `held_*` (in the player's fist, at the player sheet's pixel size and palette; grip pixel in `Fx.HELD_GRIP`), `hud_*` side views, `top_*` top-down views | character grids, one character per pixel |
+| `tools/convert_reference.py` | the player sheet (96x96 cells) and its front fist alone (`hand` layer, drawn over the held weapon), converted from `assets/raw/player_reference.png` | recovers the reference's pixels and rebuilds them in Atelier with gates |
 
 `tools/_atelier.py` is shared: `Canvas` (lit `ball`, `limb`, `slab`, `disc`, plus `rect`, `line`, `speckle`),
 `ramp()` for dark-to-light colour ramps, and `paint()` which sends a canvas through Atelier. Output goes to

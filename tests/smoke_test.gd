@@ -5,6 +5,7 @@ extends SceneTree
 
 const Layout = preload("res://scripts/layout.gd")
 const Enemy = preload("res://scripts/enemy.gd")
+const Fx = preload("res://scripts/fx.gd")
 
 var fails := 0
 var main
@@ -123,6 +124,17 @@ func _run() -> void:
 	ok(figure > 0.10 and figure < 0.15, "player figure is %.1f%% of the screen height (10-15%%)" % (figure * 100.0))
 	var px: float = p.art.scale * p.ZOOM
 	ok(is_equal_approx(px, roundf(px)), "player art pixels are a whole number of screen pixels at 1080p (%.2f)" % px)
+	# Held weapon (pixel-art-engineer section 9): same pixel size as the body, gripped by the fist.
+	if p.grips:
+		ok(is_equal_approx(p.wep.scale.x, p.body.scale.x) and p.wep.modulate == p.body.modulate and p.wep.light_mask == p.body.light_mask,
+			"held weapon shares the body's pixel size, tint and light layer")
+		ok(p.hand.get_index() > p.arm.get_index() and p.arm.get_index() > p.body.get_index(), "draw order is body, weapon, hand")
+		var fist: Vector2 = Fx.hand_anchors()[p.hand.frame]
+		var want: Vector2 = Vector2(floorf(fist.x) + 0.5 - p.art.cell / 2.0, floorf(fist.y) + 0.5 - p.art.feet) * p.art.scale
+		if p.body.flip_h:
+			want.x = -want.x
+		ok(p.hand.visible and p.hand.frame == Fx.PLAYER_V3[p.body.animation][0] + p.body.frame and p.arm.position.distance_to(want) < 0.01,
+			"the weapon sits in the fist of the frame being shown")
 	var lit: Color = w._unlit * w.AMBIENT
 	ok(absf(lit.r - 1.0) < 0.01 and absf(lit.g - 1.0) < 0.01 and absf(lit.b - 1.0) < 0.01 and w.AMBIENT.get_luminance() < 0.35,
 		"ambient stays dim and the unlit modulate cancels it")
@@ -132,6 +144,8 @@ func _run() -> void:
 	c.move = Vector2.RIGHT
 	await frames(20)
 	ok(p.body.animation == "run", "run animation plays while moving")
+	if p.grips:
+		ok(p.hand.frame == Fx.PLAYER_V3["run"][0] + p.body.frame and p.hand.flip_h == p.body.flip_h, "the fist follows the run cycle")
 	c.move = Vector2.ZERO
 	ok(p.global_position.x - p0.x > 20.0, "player moves")
 	await frames(4)
@@ -184,6 +198,7 @@ func _run() -> void:
 		t += 1
 	ok(not p.alive and main.state == "dead", "unanswered grab kills (~%.2fs)" % (t / 60.0))
 	ok(p.body.animation == "death", "death animation plays")
+	ok(not p.arm.visible and (p.hand == null or not p.hand.visible), "weapon and fist are hidden on the floor")
 	ok(t >= 18 and t <= 30, "escape window is about 0.4s")
 
 	# Instant restart on the same seed.
