@@ -12,3 +12,6 @@ __pycache__/
 # Visual polisher output and ad-hoc screenshots
 tools/out/
 screenshots/
+
+# Scratch checkouts made by Claude Code subagents
+.claude/worktrees/
