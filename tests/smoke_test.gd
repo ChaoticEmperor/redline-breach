@@ -142,6 +142,14 @@ func _run() -> void:
 		ok(p.hand.visible and p.hand.frame == Fx.PLAYER_V3[p.body.animation][0] + p.body.frame and p.wep.position.distance_to(want) < 0.01,
 			"the weapon sits in the fist of the frame being shown")
 	ok(not p.grips or is_equal_approx(Fx.PX, p.art.scale), "effects are drawn at the player's art pixel size")
+	# The infected share the player's art pixel size and stand on their feet row.
+	var sized := true
+	for z in w.enemy_list:
+		sized = sized and z.body.offset.y == z.art.cell / 2.0 - z.art.feet and z.body.sprite_frames.has_animation("lunge") \
+				and z.body.sprite_frames.has_animation("down")
+		if z.art.sheet != "chars_v2":
+			sized = sized and is_equal_approx(z.art.scale, p.art.scale) and z.art.height < p.art.height
+	ok(sized, "infected sheets match the player's pixel size, with walk, lunge and down poses")
 	var lit: Color = w._unlit * w.AMBIENT
 	ok(absf(lit.r - 1.0) < 0.01 and absf(lit.g - 1.0) < 0.01 and absf(lit.b - 1.0) < 0.01 and w.AMBIENT.get_luminance() < 0.35,
 		"ambient stays dim and the unlit modulate cancels it")
