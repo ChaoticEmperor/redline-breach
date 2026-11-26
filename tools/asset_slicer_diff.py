@@ -201,8 +201,6 @@ def audit(root: Path, out: Path) -> dict | None:
         used = char_cells(root)
         for path in sorted(sprites.rglob("*.png")):
             rel = path.relative_to(root).as_posix()
-            if "/cc0/" in rel:
-                continue  # unused third-party pack
             im = np.asarray(Image.open(path).convert("RGBA"))
             if rel == CHAR_SHEET:
                 for r in range(im.shape[0] // CELL):

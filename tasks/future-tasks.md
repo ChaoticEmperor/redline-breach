@@ -18,26 +18,26 @@ for gameplay work and `pixel-art-engineer` → `atelier-pixel-art` for art. Move
 
 ## Art (from `assets-debt.md`, P1 first)
 
-- C1: riot guard at the new infected scale (the other four now come from CraftPix sheets).
+- **I1: replace the CraftPix infected** with our own (pixelgen references, prompts in C1), then
+  delete the CraftPix originals and their sprites. All art must be our own.
 - C2: infected get-up (7 frames) for feature 5.
 - C4 / C6: player melee-swing body frames (the swing timing is done) and throw frames.
 - An 8-frame player walk (needs a new reference; `gameplay-craft` section 9).
 - Grade-screen type and icons (U1).
-- Remove the unused Kenney CC0 pack and the old sliced top-down sprites once nothing points at
-  them.
+- Remove the old sliced top-down sprites once nothing points at them.
 
 ## Levels (proposed)
 
 - **Motel** floor (`tools/ref/ref_motel.png`): props P3, floors P7.
 - **Subway** floor (`tools/ref/ref_subway.png`): props P4 (no pack covers it, so pixelgen).
-- Later: office / police HQ, street / gas station (packs P5, P6 once licensed).
-- Safe-room between floors (shelter pack): weapon pick, grade recap.
+- Later: office / police HQ (P5), street / gas station (P6).
+- Safe room between floors (P7): weapon pick, grade recap.
 
 ## Tooling
 
 - pixelgen: tune the `redline` prompt prefix for the 3/4 view; add a fixed-grid size for
   sprites meant to drop straight into a sheet; compare qwen-image-2512-turbo with z-image-turbo
   for drafts.
-- Fill the licence column of `assets-debt.md`, then decide whether the repo goes private
-  (Paul). The CraftPix originals in `assets/raw/infected/` are public now; see the open questions
-  there.
+- I2: regenerate the AI references (player, floors, concept art) through pixelgen when each is
+  next reworked, so each has a sidecar.
+- I3 (Paul): private repo, or a history rewrite once the CraftPix infected are gone.
