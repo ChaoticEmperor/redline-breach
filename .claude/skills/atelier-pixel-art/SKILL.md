@@ -46,7 +46,7 @@ ATELIER_NO_MODIFY_PATH=1 ATELIER_NO_CONNECT=1 sh /tmp/atelier-install.sh   # ins
 | --- | --- | --- |
 | `tools/draw_characters.py` | player and infected animation sheet (64x64 cells) | posed skeletons rendered as lit forms |
 | `tools/draw_props.py` | 3/4 props, glass, signs, alarm lamp, packed into one atlas | one function per prop |
-| `tools/import_infected.py` | the infected (shambler, horde, runner, bloater): `infected_<skin>.png` + generated `scripts/infected_atlas.gd` | packs existing hand-made sheets from `assets/raw/infected/`; nothing is drawn |
+| `tools/draw_infected.py` + `tools/animate_infected.py` | our infected (shambler, horde): `infected_<kind>.png` + `.json` + generated `scripts/infected_atlas.gd` | a still from our pixelgen reference, hand pass in Tandem, posed into walk, lunge and down frames, every frame re-shaded |
 | `tools/draw_weapons.py` | weapons: `held_*` (in the player's fist: 16 aim directions per sheet at the player sheet's pixel size and palette, grip at the centre of each cell; layout in `Fx.HELD_*`), `hud_*` side views, `top_*` top-down views | character grids, one character per pixel |
 | `tools/convert_reference.py` | the player sheet (96x96 cells) and its front fist alone (`hand` layer, drawn over the held weapon), converted from `assets/raw/player_reference.png` | recovers the reference's pixels and rebuilds them in Atelier with gates |
 
