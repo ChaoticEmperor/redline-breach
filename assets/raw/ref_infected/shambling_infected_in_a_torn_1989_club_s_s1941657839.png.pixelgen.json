@@ -1,0 +1,25 @@
+{
+  "tool": "pixelgen 0.1.0",
+  "created": "2026-11-26T16:16:12+0530",
+  "profile": "redline",
+  "kind": "infected",
+  "model": "z-image-turbo",
+  "model_licence": "apache-2.0",
+  "backend": "mflux",
+  "endpoint": "mflux://studio",
+  "user_prompt": "shambling infected in a torn 1989 club shirt and dark trousers, grey-green skin, slack open jaw, messy dark hair, hunched, arms hanging forward, big head like a chibi action-game hero",
+  "prompt": "pixel art game sprite, three-quarter top-down oblique view (camera high and in front, the front and top of everything visible), crisp hard-edged pixels, clean cel shading with 4-step colour ramps, coloured outlines inside a dark contour, no dithering, no noise, limited palette, 1989 neon nightclub mood with magenta and cyan rim light, single subject centered, whole subject in frame, flat pure chroma green background (#00ff00), no shadow on the background, no text, no watermark, one full-body zombie, facing right, feet at the bottom, readable silhouette, grotesque but not photoreal, shambling infected in a torn 1989 club shirt and dark trousers, grey-green skin, slack open jaw, messy dark hair, hunched, arms hanging forward, big head like a chibi action-game hero",
+  "negative": "blurry, anti-aliased, gradient background, photo, 3d render, text, logo, watermark, cropped, multiple subjects, frame, border",
+  "seed": 1941657839,
+  "size": "1024x1024",
+  "steps": 4,
+  "guidance": null,
+  "seconds": 15.2,
+  "server_seconds": 14.49,
+  "inputs": [],
+  "backend_notes": [
+    "negative prompt dropped: z-image-turbo does not take one"
+  ],
+  "sha256": "1526c8699a07fe11bf5826d3aca156f449ff00796951c515cda2edc8db1cddc1",
+  "ship_ok": true
+}
