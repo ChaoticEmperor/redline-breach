@@ -4,6 +4,8 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-26
 
+- Git history holds no CraftPix art: rewritten with `git filter-repo` from the import commit on
+  (I3); every rewritten commit verified to equal the old one minus the removed files.
 - No CraftPix art left in the tree: the runner and bloater sheets and their importer are removed;
   both use the code-drawn sheet. `animate_infected.py` writes the infected atlas.
 - Our horde is in the game (CraftPix horde removed): a clubber in a teal sequin dress, built the
