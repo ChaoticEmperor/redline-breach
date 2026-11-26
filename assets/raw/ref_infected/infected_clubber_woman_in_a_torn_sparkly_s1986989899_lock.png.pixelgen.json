@@ -1,0 +1,38 @@
+{
+  "tool": "pixelgen 0.1.0",
+  "created": "2026-11-26T17:43:49+0530",
+  "profile": "redline",
+  "kind": "infected",
+  "model": "z-image-turbo",
+  "model_licence": "apache-2.0",
+  "prompt": "pixel art game sprite, three-quarter top-down oblique view (camera high and in front, the front and top of everything visible), crisp hard-edged pixels, clean cel shading with 4-step colour ramps, coloured outlines inside a dark contour, no dithering, no noise, limited palette, 1989 neon nightclub mood with magenta and cyan rim light, single subject centered, whole subject in frame, flat pure chroma green background (#00ff00), no shadow on the background, no text, no watermark, one full-body zombie, facing right, feet at the bottom, readable silhouette, grotesque but not photoreal, infected clubber woman in a torn sparkly sequin party dress, tangled big hair, grey-green skin, slack open jaw, arms reaching forward, bare legs, heels, big head like a chibi action-game hero",
+  "seed": 1986989899,
+  "derived_from": {
+    "path": "/Users/paul-16477/GameProjects/redline-breach/assets/raw/ref_infected/infected_clubber_woman_in_a_torn_sparkly_s1986989899_px.png",
+    "sha256": "3dd47ccd0c5aa9be65a7053949c2f7cf798a3a401cc0218c78d41996e47c3cf8"
+  },
+  "steps_applied": [
+    {
+      "step": "key",
+      "background": "#00ff00",
+      "tolerance": 110
+    },
+    {
+      "step": "snap",
+      "tool": "proper-pixel-art",
+      "source_pixel_width": 11,
+      "size": [
+        97,
+        102
+      ],
+      "colours": 138
+    },
+    {
+      "step": "lock",
+      "palette": "/Users/paul-16477/GameProjects/pixelgen/palettes/redline.hex",
+      "outline": false
+    }
+  ],
+  "sha256": "013f12265dd1c37f93ba982b49e26d6aaf3cc241d572c91c108ce12f7c25d6f9",
+  "ship_ok": true
+}

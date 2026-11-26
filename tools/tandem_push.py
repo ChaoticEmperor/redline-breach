@@ -52,10 +52,14 @@ def main() -> None:
     if a.sprite not in ids:
         call("/api/docs", {"name": a.sprite, "width": a.cell, "height": a.cell})
     d = f"/api/d/{a.sprite}"
+    cv = call(f"{d}/canvas")
+    if (cv.get("width"), cv.get("height")) != (a.cell, a.cell):
+        # a size change clears the sprite: only for sprites this tool fills
+        call(f"{d}/canvas", {"width": a.cell, "height": a.cell})
     call(f"{d}/palette", {"locked": False})
     call(f"{d}/palette", {"colors": cols})
     call(f"{d}/palette", {"locked": True})
-    have = len(call(f"{d}/canvas").get("frames", [None]))
+    have = len(call(f"{d}/canvas").get("frames") or [None])
     for _ in range(have, n):
         call(f"{d}/frames", {"add": {}})
     ms = [int(v) for v in a.ms.split(",") if v]
