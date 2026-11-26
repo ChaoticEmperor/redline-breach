@@ -46,7 +46,7 @@ lighting are all built for it. Pure top-down would throw that away for nothing.
 |---|---|---|---|
 | Player | `sheet_player_v3` (96 px cells: idle 4, run 6, kick 2, death 3) + front fist | `convert_reference.py` from `assets/raw/player_reference.png` (AI-generated reference) | yes, but no sidecar (I2) |
 | Infected (shambler, horde) | 112 px cells: walk 8, lunge 5, down 4 (fall, then the corpse) | `draw_infected.py` + Tandem hand pass + `animate_infected.py`, from our pixelgen reference | yes |
-| Infected | runner, bloater (112 px cells: walk 7–12, lunge 4–7, down 1 = corpse) | `import_infected.py` from `assets/raw/infected/` | **no: CraftPix free art, to replace (I1)** |
+| Infected | runner, bloater (and riot) | code-drawn `chars_v2` (64 px cells) by `draw_characters.py`, the fallback since the CraftPix sheets were removed | yes |
 | Infected (riot) | riot guard (64 px cells: walk 4, lunge 1, down 1) | `draw_characters.py` | yes |
 | Weapons | pipe, pistol, shotgun: `held_*` (16 dirs), `hud_*`, `top_*` | `draw_weapons.py` | yes |
 | Props | 27 nightclub props (`scripts/prop_atlas.gd`), normal map prototype | `draw_props.py` | yes |
@@ -58,7 +58,7 @@ lighting are all built for it. Pure top-down would throw that away for nothing.
 
 | # | Task | Pri | How |
 |---|---|---|---|
-| I1 | **Replace the CraftPix infected** (in progress: **the shambler and the horde are ours and in the game**; runner and bloater next) with our own sheets, then delete `assets/raw/infected/`, `import_infected.py`, the `infected_*` sprites and `scripts/infected_atlas.gd` (or keep the packer if our sheets use the same layout) | P1 | pixelgen references per type (prompts in C1), converted at the same scale and frame counts (walk 8–12, lunge 4–7, down → get-up). The packer's head-matching step isn't needed when we draw to the player's proportions from the start |
+| I1 | ~~Replace the CraftPix infected~~ **Done 2026-11-26**: shambler and horde are ours; runner and bloater fall back to the code-drawn sheet (Paul's choice, as the game goes top-down). No CraftPix file is left in the tree | — | — |
 | I2 | **Record where the AI references came from**: `player_reference.png`, `floors.png`, `characters.png`, `props.png`, the concept art. The model wasn't recorded | P2 | regenerate through pixelgen (an Apache-2.0 model and a sidecar) the next time each is reworked; until then they're noted here as AI-generated, model unknown |
 | I4 | **Holes in the player's run frames 1 and 2**: transparent pixels inside the trousers and shoes (the floor shows through). Found by `critique_sprite.py` | P2 | fill them in Tandem or in `convert_reference.py`, then add the critic to the player's gates |
 | I3 | Public history still holds the CraftPix originals (from 2026-11-25) | P1, after I1 | **Decided (Paul, 2026-11-26): rewrite history.** Once our own infected have replaced them, strip `assets/raw/infected/` and the CraftPix-derived `infected_*` sprites from every commit (`git filter-repo`), then force-push `develop` and `main` and tell every clone to re-clone |

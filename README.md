@@ -65,6 +65,5 @@ refreshed with `tools/refresh_atelier_skills.sh`.
 
 ## Licences
 
-All art in REDLINE is made for it: drawn by the scripts in `tools/` or generated with pixelgen from our own
-prompts and converted by hand. The exception still being replaced is the infected: their sheets in
-`assets/raw/infected/` are CraftPix free art (see `CREDITS.md` there and `tasks/assets-debt.md`).
+All art in REDLINE is made for it: drawn by the scripts in `tools/` or Tandem, or generated with pixelgen from
+our own prompts and converted by hand. No third-party art is used.

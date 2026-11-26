@@ -18,8 +18,6 @@ for gameplay work and `pixel-art-engineer` → `atelier-pixel-art` for art. Move
 
 ## Art (from `assets-debt.md`, P1 first)
 
-- **I1: replace the CraftPix infected** with our own (pixelgen references, prompts in C1), then
-  delete the CraftPix originals and their sprites. All art must be our own.
 - C2: infected get-up (7 frames) for feature 5.
 - C4 / C6: player melee-swing body frames (the swing timing is done) and throw frames.
 - An 8-frame player walk (needs a new reference; `gameplay-craft` section 9).

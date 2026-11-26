@@ -35,9 +35,8 @@ const SPRITES := {
 	"chars_v2": "chars/sheet_characters_v2", "props_v2": "props/sheet_props_v2",
 	# Its normal map, same layout, from the forms' true normals (tools/draw_props.py).
 	"props_v2_n": "props/sheet_props_v2_n",
-	# The infected, packed from hand-made animation sheets (tools/import_infected.py).
+	# Our infected (tools/animate_infected.py). A kind without a sheet uses the code-drawn one.
 	"infected_shambler": "chars/infected_shambler", "infected_horde": "chars/infected_horde",
-	"infected_runner": "chars/infected_runner", "infected_bloater": "chars/infected_bloater",
 	# The player, converted from a reference image (tools/convert_reference.py).
 	"player_v3": "chars/sheet_player_v3",
 	# Its front fist alone (same layout), drawn over the held weapon so the hand grips it.
