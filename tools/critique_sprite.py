@@ -75,7 +75,10 @@ def critique(im: Image.Image, palette=None, allow=(), outline=OUTLINE, pose="sta
     fw, fh = b[2] - b[0], b[3] - b[1]
     pw, ph = player_size()
     hr, wr = fh / ph, fw / pw
-    if pose == "down":
+    if pose == "fall":
+        # mid-fall: neither standing nor lying, so the size is reported, not judged
+        res["size"] = {"figure": [fw, fh], "player": [pw, ph], "verdict": "ok"}
+    elif pose == "down":
         # a body on the floor: its length is the standing height
         lr = fw / ph
         verdict = "fail" if abs(lr - 1) > 0.15 else "warn" if abs(lr - 1) > 0.08 else "ok"
@@ -192,9 +195,10 @@ def main(argv=None) -> int:
     ap.add_argument("--allow", default="", help="comma-separated colours that are meant to be green")
     ap.add_argument("--out", help="write a marked, enlarged copy here")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--pose", choices=("stand", "move", "down"), default="stand",
+    ap.add_argument("--pose", choices=("stand", "move", "fall", "down"), default="stand",
                     help="stand: held to the player's width too; move: a stride or reach may be wider; "
-                         "down: a body on the floor, its length against the standing height")
+                         "fall: between the two, size not judged; down: a body on the floor, its length "
+                         "against the standing height")
     ap.add_argument("--self-test", action="store_true", help="the approved player must pass")
     a = ap.parse_args(argv)
     if a.self_test:

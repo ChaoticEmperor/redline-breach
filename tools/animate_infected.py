@@ -8,7 +8,8 @@ finished art. The hand-painted details (eyes, wounds) ride on the body as an ove
 the Tandem still (`<kind>_handpass.json` beside the reference).
 
 Output, like the game's infected sheets (`scripts/infected_atlas.gd`): one row of CELL x CELL
-cells, feet on row FEET, facing right: walk, lunge, then the downed pose.
+cells, feet on row FEET, facing right: walk, lunge, then down (a fall; its last frame is the
+body on the floor, which the game also leaves as the corpse).
 
     python3 tools/animate_infected.py shambler <reference_lock.png> <handpass.json> out.png
 
@@ -146,7 +147,8 @@ def compose(layers, W, H):
 
 
 def pose(parts, spec, overlay, *, leg_near=0, leg_far=0, lift_near=0, lift_far=0, bob=0, head=0,
-         arm_near=0, arm_far=0, rot_near=0.0, rot_far=0.0, reach_near=0, reach_far=0, lean_dx=0, pad=8):
+         arm_near=0, arm_far=0, rot_near=0.0, rot_far=0.0, reach_near=0, reach_far=0, lean_dx=0, fall=0.0, dead_face=False,
+         with_pivot=False, pad=8):
     hip, foot, shoe = spec["hip"], spec["foot"], spec["shoe"]
     body = lean(parts["body"], hip, lean_dx)
     # head loll: rows above the neck move a little more than the body
@@ -165,14 +167,60 @@ def pose(parts, spec, overlay, *, leg_near=0, leg_far=0, lift_near=0, lift_far=0
     layers = [move(px, pad, pad) for px in layers]
     W = max(x for px in layers for x, _, _ in px) + pad + 1
     H = max(y for px in layers for _, y, _ in px) + pad + 1
-    out = D.render(compose(layers, W, H))
+    m = compose(layers, W, H)
+    if dead_face:
+        m = [["lid" if v == "eye" else v for v in row] for row in m]
     # the hand-painted details, carried by the body
+    ov = []
     for x, y, c in overlay:
+        if dead_face and EYES[0] <= y <= EYES[1]:
+            c = DEAD.get(c, c)        # eyes shut: the eye and pupil become lids
         dx = round(lean_dx * (hip - y) / hip) if y < hip else 0
-        tx, ty = x + dx + (head if y < 24 else 0) + pad, y + bob + pad
-        if 0 <= ty < H and 0 <= tx < W and out[ty][tx]:
-            out[ty][tx] = c
+        ov.append((x + dx + (head if y < 24 else 0) + pad, y + bob + pad, c))
+    pivot = (pad + spec["split"], pad + foot + 1)
+    if fall:
+        m, fwd, pivot = fall_over(m, pivot, fall)
+        ov = [(*fwd(x, y), c) for x, y, c in ov]
+    out = D.render(m)
+    H, W = len(out), len(out[0])
+    for x, y, c in ov:
+        # inside the figure only: a detail moved onto the contour would open a gap in it
+        if 0 <= y < H and 0 <= x < W and out[y][x] and out[y][x] != D.OUT:
+            out[y][x] = c
+    if with_pivot:
+        return out, pivot
     return out
+
+
+EYES = (11, 17)                                       # rows of the eyes in the hand pass
+DEAD = {"#d6cf98": "#34432f", "#5e1418": "#2a3526"}   # shut: eye and pupil to lid shades
+
+
+def fall_over(m, pivot, t, squash=0.38):
+    """Tip the whole figure backwards round its feet (t = 0 standing, 1 on its back, head to
+    the left) and flatten it as it goes: in the 3/4 view a body on the floor is seen across
+    its depth. Done on the material map, so it is shaded again afterwards and the light
+    stays on the top left."""
+    H, W = len(m), len(m[0])
+    px, py = pivot
+    th = math.radians(90 * t)
+    c, s = math.cos(th), math.sin(th)
+    sq = 1 - squash * t
+    L = H                                             # room on the left for the head
+    B = H // 3                                        # and below, for the contour under the body
+    out = [[None] * (W + L) for _ in range(H + B)]
+    for ty in range(H + B):
+        for tx in range(W + L):
+            dx, dy = tx - L - px, (ty - py) / sq
+            sx, sy = round(px + dx * c - dy * s), round(py + dx * s + dy * c)
+            if 0 <= sx < W and 0 <= sy < H:
+                out[ty][tx] = m[sy][sx]
+
+    def fwd(x, y):
+        dx, dy = x - px, y - py
+        rx, ry = dx * c + dy * s, -dx * s + dy * c
+        return round(px + rx + L), round(py + ry * sq)
+    return out, fwd, (px + L, py)
 
 
 def keep_body(im: Image.Image) -> Image.Image:
@@ -202,13 +250,20 @@ def keep_body(im: Image.Image) -> Image.Image:
     return out
 
 
-def to_cell(px, feet_row_in_px) -> Image.Image:
-    """Place a rendered frame in a CELL x CELL cell, feet on FEET, centred on the hips."""
+def to_cell(px, feet_row_in_px, pivot=None, fall=0.0) -> Image.Image:
+    """Place a rendered frame in a CELL x CELL cell, feet on FEET. A standing frame is centred
+    on its body; a falling one by its feet, which slide forward as it goes over, so the body
+    on the floor ends up centred in the cell."""
     im = keep_body(D.to_image_full(px))
     cell = Image.new("RGBA", (CELL, CELL))
-    b = im.getbbox()
-    cx = (b[0] + b[2]) // 2
-    cell.alpha_composite(im, (CELL // 2 - cx, FEET - feet_row_in_px))
+    if pivot is None:
+        b = im.getbbox()
+        cell.alpha_composite(im, (CELL // 2 - (b[0] + b[2]) // 2, FEET - feet_row_in_px))
+    else:
+        ax = CELL // 2 + round(33 * math.sin(math.radians(90 * fall)))
+        # the feet stay on the floor, and nothing of the falling body goes below it
+        oy = min(FEET - pivot[1], FEET + 1 - im.getbbox()[3])
+        cell.alpha_composite(im, (ax - pivot[0], oy))
     return cell
 
 
@@ -232,7 +287,14 @@ def shambler_frames(parts, spec, overlay, pad=8):
             dict(lean_dx=5, rot_near=-80, rot_far=-66, reach_near=11, reach_far=4, leg_far=4, leg_near=-1, head=1),
             dict(lean_dx=2, rot_near=-35, rot_far=-25, reach_near=4, reach_far=1, leg_far=2)]
     lunge = [pose(parts, spec, overlay, pad=pad, **k) for k in keys]
-    return walk, lunge, feet
+    # down: knocked backwards, arms thrown up as the body goes, then on its back with the arms
+    # splayed, one knee up and the eyes shut. The last frame is also the corpse.
+    keys = [dict(fall=0.25, rot_near=-25, rot_far=-20, leg_far=2),
+            dict(fall=0.55, rot_near=-60, rot_far=-45, leg_far=3, leg_near=1),
+            dict(fall=0.85, rot_near=-95, rot_far=-60, leg_near=3, dead_face=True),
+            dict(fall=1.0, rot_near=-175, rot_far=-135, leg_near=5, leg_far=-1, dead_face=True)]
+    down = [pose(parts, spec, overlay, pad=pad, with_pivot=True, **k) + (k["fall"],) for k in keys]
+    return walk, lunge, down, feet
 
 
 def main() -> None:
@@ -242,24 +304,18 @@ def main() -> None:
     # the hand pass painted in Tandem (eyes, wounds), saved as pixels in material-map coordinates
     overlay = [tuple(p) for p in json.loads(Path(handpass).read_text())["pixels"]]
     parts = split_parts(m, SHAMBLER)
-    walk, lunge, feet = shambler_frames(parts, SHAMBLER, overlay)
-    frames = walk + lunge
-    sheet = Image.new("RGBA", (CELL * (len(frames) + 1), CELL))
-    for i, f in enumerate(frames):
-        sheet.alpha_composite(to_cell(f, feet), (i * CELL, 0))
-    # downed pose: the standing still turned onto its back
-    still = D.to_image_full(pose(parts, SHAMBLER, overlay))
-    lying = still.crop(still.getbbox()).rotate(90, expand=True)
-    cell = Image.new("RGBA", (CELL, CELL))
-    cell.alpha_composite(lying, ((CELL - lying.width) // 2, FEET - lying.height))
-    sheet.alpha_composite(cell, (len(frames) * CELL, 0))
+    walk, lunge, down, feet = shambler_frames(parts, SHAMBLER, overlay)
+    cells = [to_cell(f, feet) for f in walk + lunge] + [to_cell(f, feet, pv, t) for f, pv, t in down]
+    sheet = Image.new("RGBA", (CELL * len(cells), CELL))
+    for i, c in enumerate(cells):
+        sheet.alpha_composite(c, (i * CELL, 0))
     sheet.save(out)
     # the layout beside the sheet; import_infected.py puts it into scripts/infected_atlas.gd
     height = max(to_cell(f, feet).getbbox()[3] - to_cell(f, feet).getbbox()[1] for f in walk)
     layout = {"walk": [0, len(walk), 8.0, True], "lunge": [len(walk), len(lunge), 10.0, True],
-              "down": [len(walk) + len(lunge), 1, 1.0, False], "height": height}
+              "down": [len(walk) + len(lunge), len(down), 12.0, False], "height": height}
     Path(out).with_suffix(".json").write_text(json.dumps(layout) + "\n")
-    print(f"{out}: walk {len(walk)}, lunge {len(lunge)}, down 1, figure {height} px")
+    print(f"{out}: walk {len(walk)}, lunge {len(lunge)}, down {len(down)} (the last is the corpse), figure {height} px")
 
 
 if __name__ == "__main__":
