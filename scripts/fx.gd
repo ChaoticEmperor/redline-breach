@@ -807,11 +807,13 @@ func shards(pos: Vector2) -> void:
 
 ## Leaves a sprawled body (a frame from the character sheet) on the floor.
 ## `pos` is where the feet were; `flipped` mirrors it away from the blow.
-## The downed pose of `who` left on the floor where it fell.
+## The downed pose of `who` left on the floor where it fell: the last frame of "down" (a sheet
+## may give "down" a fall before the body on the floor).
 func corpse(who: String, pos: Vector2, flipped: bool, size := 1.0) -> void:
 	var a := art(who)
 	var s: float = a.scale * size
-	_add([1, pos + Vector2(0, (a.cell / 2.0 - a.feet) * s), frame_tex(who, "down", 0), randf_range(-0.12, 0.12),
+	var last: int = frames(who).get_frame_count("down") - 1
+	_add([1, pos + Vector2(0, (a.cell / 2.0 - a.feet) * s), frame_tex(who, "down", last), randf_range(-0.12, 0.12),
 			Color.WHITE, Vector2(-s if flipped else s, s)])
 
 

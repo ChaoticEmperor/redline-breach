@@ -4,6 +4,9 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-26
 
+- Shambler death: a backwards fall onto its back (eyes shut, arms splayed), posed before shading so
+  the light stays right; the corpse decal is the last "down" frame. Frames cleaned with Tandem's
+  lint (one near-black, small pockets closed, pixel-perfect outline turns).
 - Our shambler is in the game (CraftPix shambler removed): walk 8, lunge 5, down 1, built by
   `tools/animate_infected.py` from the Tandem still, every frame re-shaded and checked by the critic.
 - Our shambler, still pose: a pixelgen reference for layout, rebuilt on our ramps by

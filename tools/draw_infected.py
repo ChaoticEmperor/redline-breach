@@ -28,8 +28,9 @@ RAMPS = {  # dark → light
     "blood":  ["#3a0b0e", "#5e1418", "#86211f", "#a8342a"],
     "mouth":  ["#1a0a0c", "#2c1214", "#3e1a1c", "#3e1a1c"],
     "eye":    ["#b3ab78", "#b3ab78", "#d6cf98", "#d6cf98"],
+    "lid":    ["#34432f", "#34432f", "#34432f", "#34432f"],      # a shut eye
 }
-FLAT = {"mouth", "eye", "line"}
+FLAT = {"mouth", "eye", "lid", "line"}
 
 
 # --- the shambler: regions of reference 1941657839 (see the README in assets/raw/ref_infected)
