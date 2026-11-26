@@ -200,6 +200,13 @@ baseline (sizes against a tile or a body, frames per kind of motion). It holds t
 REDLINE's status against each, and the build order. Rebuild ideas in our own way; never copy another game's code,
 art, sound, text or levels. Another game's sprites may be measured, never traced, recoloured or committed.
 
+## Tasks
+
+`tasks/` tracks the plan: `future-tasks.md` (agreed and proposed work), `assets-debt.md` (what art exists, what
+each third-party pack is good for, what is still needed and where it comes from, licence status) and `done.md`.
+Update them in the same branch as the work. Third-party packs never go into the repo: commit only converted sprites
+the game uses, and only once `assets-debt.md` records a licence that allows it.
+
 ## Conventions
 
 - Scripts reference each other with `preload` constants, not `class_name` or autoloads (keeps `-s` test runs working).
