@@ -19,11 +19,12 @@ OUT = "#030102"
 RAMPS = {  # dark → light
     "skin":   ["#34432f", "#526848", "#71886a", "#97ab87"],
     "skin_far": ["#2a3526", "#34432f", "#526848", "#71886a"],   # the arm in shadow
-    "hair":   ["#15161d", "#24262f", "#363a46", "#4a4f5c"],
+    # hair, belt/shoes and trousers share one near-black and differ in hue above it
+    "hair":   ["#141418", "#2a2022", "#3b2e30", "#4e3f41"],
     "shirt":  ["#2e1226", "#55203f", "#7e3361", "#a8508a"],
     "belt":   ["#141418", "#1e1d22", "#2a282e", "#36343a"],
-    "pants":  ["#141420", "#222838", "#303a50", "#414c63"],
-    "shoe":   ["#121114", "#1d1b20", "#2a272d", "#38343b"],
+    "pants":  ["#141418", "#222838", "#303a50", "#414c63"],
+    "shoe":   ["#141418", "#1e1d22", "#2a282e", "#36343a"],
     "blood":  ["#3a0b0e", "#5e1418", "#86211f", "#a8342a"],
     "mouth":  ["#1a0a0c", "#2c1214", "#3e1a1c", "#3e1a1c"],
     "eye":    ["#b3ab78", "#b3ab78", "#d6cf98", "#d6cf98"],
@@ -166,7 +167,64 @@ def render(m):
                     break
     for x, y in drop:
         out[y][x] = None
+    fill_pockets(out)
+    clean_corners(out)
     return out
+
+
+def clean_corners(out):
+    """Pixel-perfect contour: drop an outer contour pixel that sits in an L-shaped turn (two
+    perpendicular contour neighbours, the pixel between them filled, the other two sides empty).
+    The line then turns on a clean diagonal step, and nothing inside is left uncovered."""
+    H, W = len(out), len(out[0])
+    get = lambda x, y: out[y][x] if 0 <= x < W and 0 <= y < H else None
+    for _ in range(2):
+        drop = []
+        for y in range(H):
+            for x in range(W):
+                if out[y][x] != OUT:
+                    continue
+                for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                    if get(x + dx, y) == OUT and get(x, y + dy) == OUT and get(x + dx, y + dy) is not None \
+                            and get(x - dx, y) is None and get(x, y - dy) is None:
+                        drop.append((x, y))
+                        break
+        for x, y in drop:
+            out[y][x] = None
+
+
+def fill_pockets(out, most=12):
+    """Close small enclosed pockets of empty pixels (between an arm and the body, between the
+    knees) with the contour colour: a few see-through pixels inside a figure read as specks.
+    Larger enclosed gaps are real negative space and stay."""
+    H, W = len(out), len(out[0])
+    outside = set()
+    st = [(x, y) for x in range(W) for y in (0, H - 1)] + [(x, y) for y in range(H) for x in (0, W - 1)]
+    st = [p for p in st if out[p[1]][p[0]] is None]
+    outside.update(st)
+    while st:
+        x, y = st.pop()
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < W and 0 <= ny < H and (nx, ny) not in outside and out[ny][nx] is None:
+                outside.add((nx, ny))
+                st.append((nx, ny))
+    seen = set()
+    for y in range(H):
+        for x in range(W):
+            if out[y][x] is not None or (x, y) in outside or (x, y) in seen:
+                continue
+            comp, st = [], [(x, y)]
+            seen.add((x, y))
+            while st:
+                cx, cy = st.pop()
+                comp.append((cx, cy))
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                    if 0 <= nx < W and 0 <= ny < H and (nx, ny) not in seen and out[ny][nx] is None:
+                        seen.add((nx, ny))
+                        st.append((nx, ny))
+            if len(comp) <= most:
+                for cx, cy in comp:
+                    out[cy][cx] = OUT
 
 
 def to_image_full(px) -> Image.Image:

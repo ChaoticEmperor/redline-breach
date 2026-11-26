@@ -5,20 +5,22 @@ arm, near and far leg), each part is posed per frame (leg shear and lift, body b
 arm swing, arms raised by rotation round the shoulder), and every frame is shaded and outlined
 again by `draw_infected.render`, so the pixels stay clean instead of being pushed about as
 finished art. The hand-painted details (eyes, wounds) ride on the body as an overlay taken from
-the Tandem still.
+the Tandem still (`<kind>_handpass.json` beside the reference).
 
 Output, like the game's infected sheets (`scripts/infected_atlas.gd`): one row of CELL x CELL
 cells, feet on row FEET, facing right: walk, lunge, then the downed pose.
 
-    python3 tools/animate_infected.py shambler <reference_lock.png> <tandem_still.png> out.png
+    python3 tools/animate_infected.py shambler <reference_lock.png> <handpass.json> out.png
 
 For the game: out.png = assets/sprites/chars/infected_shambler.png; the layout goes to
 out.json beside it, and `tools/import_infected.py` writes it into the atlas.
 """
 from __future__ import annotations
 
+import json
 import math
 import sys
+from pathlib import Path
 
 from PIL import Image
 
@@ -234,22 +236,11 @@ def shambler_frames(parts, spec, overlay, pad=8):
 
 
 def main() -> None:
-    kind, ref, tandem, out = sys.argv[1:5]
+    kind, ref, handpass, out = sys.argv[1:5]
     regions, drop = D.KINDS[kind]
     m = D.material_map(ref, regions, drop)
-    base = D.render(m)
-    # overlay = what the Tandem still has that the generated base does not
-    t = Image.open(tandem).convert("RGBA")
-    bi = D.to_image_full(base)
-    tb, bb = t.getbbox(), bi.getbbox()
-    ox, oy = bb[0] - tb[0], bb[1] - tb[1]
-    overlay = []
-    for y in range(t.height):
-        for x in range(t.width):
-            p = t.getpixel((x, y))
-            q = bi.getpixel((x + ox, y + oy)) if 0 <= x + ox < bi.width and 0 <= y + oy < bi.height else (0, 0, 0, 0)
-            if p[3] and p != q and y + oy < SHAMBLER["hip"]:
-                overlay.append((x + ox, y + oy, "#%02x%02x%02x" % p[:3]))
+    # the hand pass painted in Tandem (eyes, wounds), saved as pixels in material-map coordinates
+    overlay = [tuple(p) for p in json.loads(Path(handpass).read_text())["pixels"]]
     parts = split_parts(m, SHAMBLER)
     walk, lunge, feet = shambler_frames(parts, SHAMBLER, overlay)
     frames = walk + lunge
@@ -264,8 +255,6 @@ def main() -> None:
     sheet.alpha_composite(cell, (len(frames) * CELL, 0))
     sheet.save(out)
     # the layout beside the sheet; import_infected.py puts it into scripts/infected_atlas.gd
-    import json
-    from pathlib import Path
     height = max(to_cell(f, feet).getbbox()[3] - to_cell(f, feet).getbbox()[1] for f in walk)
     layout = {"walk": [0, len(walk), 8.0, True], "lunge": [len(walk), len(lunge), 10.0, True],
               "down": [len(walk) + len(lunge), 1, 1.0, False], "height": height}
