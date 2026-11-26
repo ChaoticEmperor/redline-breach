@@ -29,8 +29,13 @@ RAMPS = {  # dark → light
     "mouth":  ["#1a0a0c", "#2c1214", "#3e1a1c", "#3e1a1c"],
     "eye":    ["#b3ab78", "#b3ab78", "#d6cf98", "#d6cf98"],
     "lid":    ["#34432f", "#34432f", "#34432f", "#34432f"],      # a shut eye
+    # the horde: a teal sequin party dress, glitter on it, a neon cyan earring and bracelet
+    "dress":  ["#0f2a2e", "#16474c", "#1f6b70", "#2f9096"],
+    "sequin": ["#5fd3d6", "#5fd3d6", "#5fd3d6", "#5fd3d6"],
+    "sparkle": ["#b8f6f2", "#b8f6f2", "#b8f6f2", "#b8f6f2"],
+    "jewel":  ["#05d9e8", "#05d9e8", "#05d9e8", "#05d9e8"],
 }
-FLAT = {"mouth", "eye", "lid", "line"}
+FLAT = {"mouth", "eye", "lid", "line", "sequin", "sparkle", "jewel"}
 
 
 # --- the shambler: regions of reference 1941657839 (see the README in assets/raw/ref_infected)
@@ -72,6 +77,36 @@ def shambler_regions(c: str, x: int, y: int) -> str | None:
     if c == "#3e2654":
         return "shirt"
     return "shirt"
+
+
+# --- the horde: regions of reference 1986989899, cleaned at --pixel-width 11
+def horde_regions(c: str, x: int, y: int) -> str | None:
+    if c == "#475367" and y >= 80:
+        return None                   # the shadow under her feet: our sprites carry none
+    if c in ("#0a0612", "#1d212b"):
+        return "line"
+    if c in ("#171520", "#2c202e"):
+        if y >= 77:
+            return "shoe"             # black heels
+        return "hair" if y < 30 else "line"
+    if c == "#fcefcd":
+        return "eye" if y < 20 else "sparkle"
+    if c == "#05d9e8":
+        return "jewel"
+    if c in ("#ff2a6d", "#e3966f", "#f7d8a6"):
+        if y < 36 and x >= 22:
+            return "mouth" if y < 24 else "blood"   # tongue, and a bite on the chest
+        return "sequin"
+    if c == "#3e2654":
+        return "dress"
+    if c == "#a8a184":
+        return "skin"
+    if c == "#475367":
+        return "skin_far" if y >= 6 else "hair"
+    return "line"
+
+
+HORDE_DROP = (63, 66, 68, 70, 74)
 
 
 # Rows dropped to bring the figure to the player's height (78). Vertical runs only: the
@@ -160,6 +195,9 @@ def render(m):
     for y in range(H):
         for x in range(W):
             if out[y][x] != OUT:
+                continue
+            # never the only contour of a coloured pixel on another side (at a corner)
+            if any(get(x + dx, y + dy) not in (None, OUT) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
                 continue
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 if get(x + dx, y + dy) is None and get(x - dx, y - dy) == OUT \
@@ -251,13 +289,16 @@ def to_image(px) -> Image.Image:
     return im.crop(im.getbbox())
 
 
-KINDS = {"shambler": (shambler_regions, SHAMBLER_DROP)}
+KINDS = {"shambler": (shambler_regions, SHAMBLER_DROP), "horde": (horde_regions, HORDE_DROP)}
 
 
 def main() -> None:
     kind, ref, out = sys.argv[1:4]
     regions, drop = KINDS[kind]
-    to_image(render(material_map(ref, regions, drop))).save(out)
+    m = material_map(ref, regions, drop)
+    # a pixel of room all round, so a figure touching the edge still gets its contour
+    m = [[None] * (len(m[0]) + 2)] + [[None] + row + [None] for row in m] + [[None] * (len(m[0]) + 2)]
+    to_image(render(m)).save(out)
 
 
 if __name__ == "__main__":

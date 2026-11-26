@@ -4,6 +4,9 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-26
 
+- Our horde is in the game (CraftPix horde removed): a clubber in a teal sequin dress, built the
+  shambler's way. The animator now takes a spec per kind (her own lunge, an arm drawn in front,
+  reach by stretching so the arm stays on the shoulder).
 - Shambler death: a backwards fall onto its back (eyes shut, arms splayed), posed before shading so
   the light stays right; the corpse decal is the last "down" frame. Frames cleaned with Tandem's
   lint (one near-black, small pockets closed, pixel-perfect outline turns).

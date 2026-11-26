@@ -1,0 +1,25 @@
+{
+  "tool": "pixelgen 0.1.0",
+  "created": "2026-11-26T17:42:44+0530",
+  "profile": "redline",
+  "kind": "infected",
+  "model": "z-image-turbo",
+  "model_licence": "apache-2.0",
+  "backend": "mflux",
+  "endpoint": "mflux://studio",
+  "user_prompt": "infected clubber woman in a torn sparkly sequin party dress, tangled big hair, grey-green skin, slack open jaw, arms reaching forward, bare legs, heels, big head like a chibi action-game hero",
+  "prompt": "pixel art game sprite, three-quarter top-down oblique view (camera high and in front, the front and top of everything visible), crisp hard-edged pixels, clean cel shading with 4-step colour ramps, coloured outlines inside a dark contour, no dithering, no noise, limited palette, 1989 neon nightclub mood with magenta and cyan rim light, single subject centered, whole subject in frame, flat pure chroma green background (#00ff00), no shadow on the background, no text, no watermark, one full-body zombie, facing right, feet at the bottom, readable silhouette, grotesque but not photoreal, infected clubber woman in a torn sparkly sequin party dress, tangled big hair, grey-green skin, slack open jaw, arms reaching forward, bare legs, heels, big head like a chibi action-game hero",
+  "negative": "blurry, anti-aliased, gradient background, photo, 3d render, text, logo, watermark, cropped, multiple subjects, frame, border",
+  "seed": 1986989899,
+  "size": "1024x1024",
+  "steps": 4,
+  "guidance": null,
+  "seconds": 15.3,
+  "server_seconds": 14.46,
+  "inputs": [],
+  "backend_notes": [
+    "negative prompt dropped: z-image-turbo does not take one"
+  ],
+  "sha256": "296971a6752e8f48a36dfd48512c694ea4adceca8b38d70d94861148bc9bdd82",
+  "ship_ok": true
+}
