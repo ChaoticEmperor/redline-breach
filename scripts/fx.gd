@@ -396,16 +396,11 @@ static func lit(diffuse: Texture2D, normal: Texture2D) -> Texture2D:
 
 
 ## Path of the sprite file for a texture name, or "" if there is none.
-## AI-sheet sprites win over the CC0 pack; no file means procedural art.
+## No file means procedural art.
 static func sprite_path(n: String) -> String:
 	if not _paths.has(n):
-		var file: String = SPRITES.get(n, n) + ".png"
-		var found := ""
-		for dir in [SPRITE_DIR, SPRITE_DIR + "cc0/"]:
-			if ResourceLoader.exists(dir + file):
-				found = dir + file
-				break
-		_paths[n] = found
+		var path: String = SPRITE_DIR + SPRITES.get(n, n) + ".png"
+		_paths[n] = path if ResourceLoader.exists(path) else ""
 	return _paths[n]
 
 
