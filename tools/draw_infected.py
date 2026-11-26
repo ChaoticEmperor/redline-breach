@@ -54,6 +54,8 @@ def shambler_regions(c: str, x: int, y: int) -> str | None:
     if c == "#2c202e" and y <= 22:
         return "mouth"
     if c == "#a8a184":
+        if y >= 52 and 8 < x < 13:
+            return "pants"            # hem hidden behind the hand: trousers once the hand moves
         if y >= 35 and x <= 8:
             return "skin"             # near forearm and hand
         if y <= 25 and x >= 22:
@@ -165,6 +167,18 @@ def render(m):
     for x, y in drop:
         out[y][x] = None
     return out
+
+
+def to_image_full(px) -> Image.Image:
+    """The rendered pixels as an image, uncropped (same coordinates as the map)."""
+    H, W = len(px), len(px[0])
+    im = Image.new("RGBA", (W, H))
+    for y in range(H):
+        for x in range(W):
+            if px[y][x]:
+                h = px[y][x]
+                im.putpixel((x, y), (int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16), 255))
+    return im
 
 
 def to_image(px) -> Image.Image:

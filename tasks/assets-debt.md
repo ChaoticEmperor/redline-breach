@@ -43,7 +43,8 @@ lighting are all built for it. Pure top-down would throw that away for nothing.
 | Area | Assets | Made by | Ours? |
 |---|---|---|---|
 | Player | `sheet_player_v3` (96 px cells: idle 4, run 6, kick 2, death 3) + front fist | `convert_reference.py` from `assets/raw/player_reference.png` (AI-generated reference) | yes, but no sidecar (I2) |
-| Infected | shambler, horde, runner, bloater (112 px cells: walk 7–12, lunge 4–7, down 1 = corpse) | `import_infected.py` from `assets/raw/infected/` | **no: CraftPix free art, to replace (I1)** |
+| Infected (shambler) | 112 px cells: walk 8, lunge 5, down 1 | `draw_infected.py` + Tandem hand pass + `animate_infected.py`, from our pixelgen reference | yes |
+| Infected | horde, runner, bloater (112 px cells: walk 7–12, lunge 4–7, down 1 = corpse) | `import_infected.py` from `assets/raw/infected/` | **no: CraftPix free art, to replace (I1)** |
 | Infected (riot) | riot guard (64 px cells: walk 4, lunge 1, down 1) | `draw_characters.py` | yes |
 | Weapons | pipe, pistol, shotgun: `held_*` (16 dirs), `hud_*`, `top_*` | `draw_weapons.py` | yes |
 | Props | 27 nightclub props (`scripts/prop_atlas.gd`), normal map prototype | `draw_props.py` | yes |
@@ -55,7 +56,7 @@ lighting are all built for it. Pure top-down would throw that away for nothing.
 
 | # | Task | Pri | How |
 |---|---|---|---|
-| I1 | **Replace the CraftPix infected** (in progress: the shambler's still pose is drawn, `assets/raw/ref_infected/`; frames next) with our own sheets, then delete `assets/raw/infected/`, `import_infected.py`, the `infected_*` sprites and `scripts/infected_atlas.gd` (or keep the packer if our sheets use the same layout) | P1 | pixelgen references per type (prompts in C1), converted at the same scale and frame counts (walk 8–12, lunge 4–7, down → get-up). The packer's head-matching step isn't needed when we draw to the player's proportions from the start |
+| I1 | **Replace the CraftPix infected** (in progress: **the shambler is ours and in the game**; horde, runner and bloater next) with our own sheets, then delete `assets/raw/infected/`, `import_infected.py`, the `infected_*` sprites and `scripts/infected_atlas.gd` (or keep the packer if our sheets use the same layout) | P1 | pixelgen references per type (prompts in C1), converted at the same scale and frame counts (walk 8–12, lunge 4–7, down → get-up). The packer's head-matching step isn't needed when we draw to the player's proportions from the start |
 | I2 | **Record where the AI references came from**: `player_reference.png`, `floors.png`, `characters.png`, `props.png`, the concept art. The model wasn't recorded | P2 | regenerate through pixelgen (an Apache-2.0 model and a sidecar) the next time each is reworked; until then they're noted here as AI-generated, model unknown |
 | I4 | **Holes in the player's run frames 1 and 2**: transparent pixels inside the trousers and shoes (the floor shows through). Found by `critique_sprite.py` | P2 | fill them in Tandem or in `convert_reference.py`, then add the critic to the player's gates |
 | I3 | Public history still holds the CraftPix originals (from 2026-11-25) | P1, after I1 | **Decided (Paul, 2026-11-26): rewrite history.** Once our own infected have replaced them, strip `assets/raw/infected/` and the CraftPix-derived `infected_*` sprites from every commit (`git filter-repo`), then force-push `develop` and `main` and tell every clone to re-clone |
@@ -73,7 +74,7 @@ or geometric things); **proc** = procedural in `fx.gd`.
 |---|---|---|---|---|---|
 | C1 | **Infected, one reference per type** at the player's scale and proportions | I1; riot is also at a coarser pixel size | P1 | pixelgen `-k infected` | "shambling infected in a torn 1989 club outfit, grey-green skin, slack jaw", "infected clubber in a sequin dress, tangled hair, arms reaching", "lean sprinting infected in a tracksuit, hunched forward", "swollen bloated infected, glowing acid-green veins, bursting shirt", "infected in riot police armour, cracked visor, heavy stance" |
 | C2 | Infected **knockdown → floor → get-up** (down about 3 + get-up 7) | feature 5 (random knockdown length) needs a readable get-up | P1 | pixelgen edit of our C1 pick + draw | currently a single `down` frame, which is also the corpse |
-| C3 | Infected **directional deaths**: front/back × blunt, cut, shot, blast | gore feedback; matches weapon type | P2 | draw | 1–4 frames each plus a corpse frame |
+| C3 | Infected **fall and corpse**, then directional deaths: front/back × blunt, cut, shot, blast | the shambler's down pose is its standing still turned 90° (feet up, rigid arms, eyes open, light from the wrong side); a real corpse is drawn lying in the 3/4 view, plus 3–5 fall frames sized by the blow | P1 | draw in Tandem (after its phase 5 lint lands) | 1–4 frames each plus a corpse frame |
 | C4 | Player **melee swing** body frames per melee weapon (7–9) | the swing timing is done; the body doesn't move | P1 | draw / edit of the player reference | swing arc drawn as an effect on `Fx._dot` |
 | C5 | Player **shoot/recoil** (2–3 frames), shotgun pump (about 5) | weapon feel | P2 | draw | |
 | C6 | Player **throw** (about 5 frames) | feature 3 (throwable empty guns) | P1 | draw | |

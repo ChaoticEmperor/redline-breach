@@ -4,7 +4,8 @@ Measures what can be measured and marks it on an enlarged copy, so a person (or 
 looking at the picture) can judge the rest. Checks:
 
   size      the figure against the player: height within 5% (12% is the smoke-test limit),
-            width within 20%. A family of actors keeps one body size, the cell and the feet
+            width within 20% for a standing pose (`--pose move` lets a stride or reach be wider,
+            `--pose down` measures a body on the floor by its length). A family of actors keeps one body size, the cell and the feet
             row fixed; only weapons and reaching limbs go past it.
   key       bright green-dominant pixels: chroma backdrop left inside the figure (between the
             legs, under an arm), or a palette lock that turned it into a neon green.
@@ -56,7 +57,7 @@ def player_size() -> tuple[int, int]:
     return b[2] - b[0], b[3] - b[1]
 
 
-def critique(im: Image.Image, palette=None, allow=(), outline=OUTLINE):
+def critique(im: Image.Image, palette=None, allow=(), outline=OUTLINE, pose="stand"):
     W, H = im.size
     px = im.load()
     op = lambda x, y: 0 <= x < W and 0 <= y < H and px[x, y][3] > 0
@@ -74,10 +75,18 @@ def critique(im: Image.Image, palette=None, allow=(), outline=OUTLINE):
     fw, fh = b[2] - b[0], b[3] - b[1]
     pw, ph = player_size()
     hr, wr = fh / ph, fw / pw
-    res["size"] = {
-        "figure": [fw, fh], "player": [pw, ph], "height_ratio": round(hr, 3), "width_ratio": round(wr, 3),
-        "verdict": "fail" if abs(hr - 1) > 0.12 else "warn" if abs(hr - 1) > 0.05 or abs(wr - 1) > 0.20 else "ok",
-    }
+    if pose == "down":
+        # a body on the floor: its length is the standing height
+        lr = fw / ph
+        verdict = "fail" if abs(lr - 1) > 0.15 else "warn" if abs(lr - 1) > 0.08 else "ok"
+        res["size"] = {"figure": [fw, fh], "player": [pw, ph], "length_ratio": round(lr, 3), "verdict": verdict}
+    else:
+        # stride and reaching arms widen a figure; only a standing pose is held to the width
+        wide = pose == "stand" and abs(wr - 1) > 0.20
+        res["size"] = {
+            "figure": [fw, fh], "player": [pw, ph], "height_ratio": round(hr, 3), "width_ratio": round(wr, 3),
+            "verdict": "fail" if abs(hr - 1) > 0.12 else "warn" if abs(hr - 1) > 0.05 or wide else "ok",
+        }
 
     colours = {}
     for y in range(H):
@@ -183,6 +192,9 @@ def main(argv=None) -> int:
     ap.add_argument("--allow", default="", help="comma-separated colours that are meant to be green")
     ap.add_argument("--out", help="write a marked, enlarged copy here")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--pose", choices=("stand", "move", "down"), default="stand",
+                    help="stand: held to the player's width too; move: a stride or reach may be wider; "
+                         "down: a body on the floor, its length against the standing height")
     ap.add_argument("--self-test", action="store_true", help="the approved player must pass")
     a = ap.parse_args(argv)
     if a.self_test:
@@ -194,7 +206,7 @@ def main(argv=None) -> int:
     if a.palette:
         pi = Image.open(a.palette).convert("RGBA")
         pal = {hexc(p) for p in pi.getdata() if p[3] > 0}
-    res, marks = critique(im, pal, [c for c in a.allow.split(",") if c])
+    res, marks = critique(im, pal, [c for c in a.allow.split(",") if c], pose=a.pose)
     if a.out:
         marked(im, marks).save(a.out)
     if a.json:

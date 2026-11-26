@@ -4,6 +4,8 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-26
 
+- Our shambler is in the game (CraftPix shambler removed): walk 8, lunge 5, down 1, built by
+  `tools/animate_infected.py` from the Tandem still, every frame re-shaded and checked by the critic.
 - Our shambler, still pose: a pixelgen reference for layout, rebuilt on our ramps by
   `tools/draw_infected.py` at the player's height, hand-painted in Tandem. `tools/critique_sprite.py`
   checks size, key leftovers, contour, noise, flat fills and palette (it found holes in the
