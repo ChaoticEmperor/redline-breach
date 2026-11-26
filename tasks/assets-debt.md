@@ -53,7 +53,7 @@ lighting are all built for it. Pure top-down would throw that away for nothing.
 |---|---|---|---|
 | I1 | **Replace the CraftPix infected** with our own sheets, then delete `assets/raw/infected/`, `import_infected.py`, the `infected_*` sprites and `scripts/infected_atlas.gd` (or keep the packer if our sheets use the same layout) | P1 | pixelgen references per type (prompts in C1), converted at the same scale and frame counts (walk 8–12, lunge 4–7, down → get-up). The packer's head-matching step isn't needed when we draw to the player's proportions from the start |
 | I2 | **Record where the AI references came from**: `player_reference.png`, `floors.png`, `characters.png`, `props.png`, the concept art. The model wasn't recorded | P2 | regenerate through pixelgen (an Apache-2.0 model and a sidecar) the next time each is reworked; until then they're noted here as AI-generated, model unknown |
-| I3 | Public history still holds the CraftPix originals (from 2026-11-25) | — | Paul's call: make the repo private, or rewrite history once I1 lands |
+| I3 | Public history still holds the CraftPix originals (from 2026-11-25) | P1, after I1 | **Decided (Paul, 2026-11-26): rewrite history.** Once our own infected have replaced them, strip `assets/raw/infected/` and the CraftPix-derived `infected_*` sprites from every commit (`git filter-repo`), then force-push `develop` and `main` and tell every clone to re-clone |
 
 ## Asset debt: what the game needs that it does not have
 
@@ -134,4 +134,3 @@ The study adds three points that section 9 doesn't spell out:
 
 - Which levels come after the nightclub, and in what order? The concept art suggests motel,
   then subway; the office, street and safe-room rows assume more.
-- I3: private repo, or a history rewrite after I1?

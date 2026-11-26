@@ -4,6 +4,7 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-26
 
+- Decision: the CraftPix originals are removed from git history after I1 (no private repo).
 - Own art only: no third-party packs. Removed the unused Kenney CC0 pack and its importer (no
   texture ever loaded from it); pixelgen refuses third-party files as edit inputs. The CraftPix
   infected are listed for replacement (`assets-debt.md` I1).

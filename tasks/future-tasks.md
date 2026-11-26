@@ -40,4 +40,5 @@ for gameplay work and `pixel-art-engineer` → `atelier-pixel-art` for art. Move
   for drafts.
 - I2: regenerate the AI references (player, floors, concept art) through pixelgen when each is
   next reworked, so each has a sidecar.
-- I3 (Paul): private repo, or a history rewrite once the CraftPix infected are gone.
+- I3: rewrite history once the CraftPix infected are gone (decided 2026-11-26): `git filter-repo`
+  over `assets/raw/infected/` and the derived sprites, force-push `develop` and `main`, re-clone.
