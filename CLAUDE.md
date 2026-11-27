@@ -81,20 +81,34 @@ M6 Tandem art pass → M7 grade screen. The plan and Paul's answers are in `task
 
 ## Display and web shell
 
-- Base canvas 1920x1080, stretch `canvas_items` + `expand`: wider phones (20:9, 21:9) get more width, never bars
-  (M1 replaces this with the pixel-true viewport and records the measured numbers here).
+- **Pixel-true view** (`main.gd`): the world is drawn into a `SubViewport` and shown by a `SubViewportContainer`
+  at a whole-number scale (`stretch_shrink`), so rotated sprites land on the same art-pixel grid as everything
+  else. The window stretch mode is `disabled`: one canvas unit is one window pixel, and the UI is drawn at full
+  resolution on top. `Main.scale_for(size)` picks the whole number that brings the short side closest to
+  `SHORT_TARGET` (330 art px); the long side expands with the window (no black bars), and the leftover, always
+  fewer pixels than the scale, shows `BORDER`. Measured (M1): 1280x720 x2, 1920x1080 x3, 2560x1440 x4 (all
+  640x360 art px, 20x11.2 tiles), iPhone 2556x1179 x4 (639x294), Android 2400x1080 x3 (800x360), 3840x2160 x7
+  (548x308). The short side stays 9.2–11.2 tiles. Asserted by the smoke test.
+- Mouse aim needs the player's window position: `Main.to_window()` (canvas transform x scale), passed to
+  `controls.gd` as `aim_origin`.
 - Portrait and landscape are both supported. HUD and touch controls are laid out in units (the SHORT screen side
   is 360 units; `W` x `H` units overall) by `Controls.layout()` and anchored to the corners; never use fixed pixel
-  positions there. The smoke test checks the controls stay on screen on several screen shapes.
-- Presses are buffered for 100ms in `controls.gd`; gameplay must only `take()` a press when it can act on it.
+  positions there. The smoke test checks the controls stay on screen and do not overlap on several screen shapes.
+- Touch: MOVE stick (left); HIT/FIRE (hold to attack, drag to aim), THROW, KICK/EXEC, LOOK (hold). Keyboard and
+  mouse: WASD, mouse aim, left click attack, right click or Q throw, E pick up, Space kick/execute, Shift look far,
+  R restart. No dash. Presses are buffered for 100ms in `controls.gd`; gameplay must only `take()` a press when it
+  can act on it.
 - `web_template/custom_shell.html` is the export shell (Godot's default plus the fullscreen toggle, and PWA tags).
   `manifest.webmanifest` and the icons are copied into `web/` by CI after the export; do the same locally.
 
 ## Project layout
 
 - `project.godot`, `export_presets.cfg` (preset `Web`, no threads), `main.tscn` (root node + `scripts/main.gd`).
-- `scripts/main.gd` — run lifecycle (M0: one placeholder room). `scripts/controls.gd` — touch sticks/buttons +
-  keyboard/mouse. `scripts/sfx.gd` — synthesised sound effects and music.
+- `scripts/main.gd` — the pixel-true view, floor build, camera (leads toward the aim; LOOK pushes it far).
+- `scripts/level.gd` — ASCII floor map → `TileMapLayer` (placeholder tileset with wall collision).
+- `scripts/player.gd` — movement (0.1 s acceleration, corner rounding) and aim. `scripts/look.gd` — how an actor
+  is drawn (legs turned to the movement, torso to the aim); the only file that knows the view.
+- `scripts/controls.gd` — touch sticks/buttons + keyboard/mouse. `scripts/sfx.gd` — synthesised sound and music.
 - `tools/tandem_push.py` — put a sheet into a Tandem sprite to play, lint or hand-paint it.
 - `web_template/` — HTML shell, PWA manifest, icons.
 - `tests/smoke_test.gd` — headless test; drives the game through `controls.override`.

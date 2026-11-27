@@ -13,7 +13,7 @@ untouched until Paul asks for a release. Load `gameplay-craft` for gameplay work
 | Enemies | Keep the 1989 nightclub infection setting; armed humans beside the infected |
 | Levels | Hand-made floors (ASCII map files loaded into a `TileMapLayer`), not seeded chunks |
 | Dash | Dropped (the genre has none), unless Paul says otherwise |
-| Render size | Open: a fixed-height pixel-true base with whole-number scaling; measure 480x270 against 360 high on 1280x720, 1920x1080, 2560x1440, iPhone landscape 2556x1179 and Android 2400x1080 in M1, and record the choice |
+| Render size | M1: whole-number scale bringing the short side closest to 330 art px, long side expands (no bars). 16:9 desktops all get 640x360 (20x11.2 tiles); iPhone 2556x1179 x4 = 639x294; Android 2400x1080 x3 = 800x360. A genre-close 480x270 would give 720p x2.67 and 1440p x5.33 (not whole numbers). One constant (`SHORT_TARGET`) if Paul wants it closer |
 
 ## Milestones
 
