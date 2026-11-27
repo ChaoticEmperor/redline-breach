@@ -101,23 +101,42 @@ M6 Tandem art pass → M7 grade screen. The plan and Paul's answers are in `task
 - `web_template/custom_shell.html` is the export shell (Godot's default plus the fullscreen toggle, and PWA tags).
   `manifest.webmanifest` and the icons are copied into `web/` by CI after the export; do the same locally.
 
-## Project layout
+## Project layout and object model
 
-- `project.godot`, `export_presets.cfg` (preset `Web`, no threads), `main.tscn` (root node + `scripts/main.gd`).
-- `scripts/main.gd` — the pixel-true view, floor build, camera (leads toward the aim; LOOK pushes it far).
-- `scripts/level.gd` — ASCII floor map → `TileMapLayer` (placeholder tileset with wall collision).
-- `scripts/player.gd` — movement (0.1 s acceleration, corner rounding), aim, attack, throw, pick up.
-- `scripts/weapons.gd` — the weapon table: melee (silent, one hit in an arc, the blow lands at the strike, then a
-  held frame), guns (own ammo only, no reloads, loud: `Main.noise`), fists (knock down only). Anything thrown
-  knocks down and lands as a pickup (`thrown.gd`, `pickup.gd`). Shots are cast from the body's centre along the
-  aim (seeded spread, `Main.rng`); flash and tracer start at the muzzle (`Look.tip_global()`).
-- `scripts/fx.gd` — tracers, flashes and the shake budget, inside the pixel-true view, in hard colour steps.
-- Physics layers: 1 walls, 2 bodies that can be hit (enemies), 3 the player. `scripts/look.gd` — how an actor
-  is drawn (legs turned to the movement, torso to the aim); the only file that knows the view.
-- `scripts/controls.gd` — touch sticks/buttons + keyboard/mouse. `scripts/sfx.gd` — synthesised sound and music.
-- `tools/tandem_push.py` — put a sheet into a Tandem sprite to play, lint or hand-paint it.
-- `web_template/` — HTML shell, PWA manifest, icons.
-- `tests/smoke_test.gd` — headless test; drives the game through `controls.override`.
+Everything in the world is an object built from components; every blow is one `Hit`
+(`scripts/core/hit.gd`: kind, direction, force, source, team) passed to `take_hit(hit)`, and each
+class answers it in its own way (polymorphism). New things implement `take_hit`; nothing checks
+types.
+
+- `scripts/main.gd`: the pixel-true view, floor build and restart, and the services objects use:
+  `spawn()`, `drop()`, `noise()` (draws the nearest `NOISE_DRAWS` enemies to scattered spots),
+  `path()` (AStarGrid2D on the tile grid), `blood()`, `corpse_texture()`.
+- `scripts/level.gd`: an ASCII floor → `TileMapLayer` + a list of things to spawn. The legend is
+  at the top of the file; tiles and their solid flags come from `assets/sprites/world/tiles.json`.
+  Floors are drawn in Tandem's tile maps and round-tripped as this format; the file stays the source.
+- `scripts/actors/`: `actor.gd` (abstract base: moves, aims, holds a Weapon, knocked down or dies
+  into a Body), `player.gd` and `enemy.gd` (subclasses: a different Brain and skin), `brain.gd`
+  (abstract), `player_brain.gd` (the controls), `enemy_brain.gd` (sight cone on staggered frames,
+  0.25 s notice, A* chase, search, first-shot delay).
+- `scripts/core/`: `hit.gd`, `health.gd` (component: one lethal hit kills; punch, kick and impact
+  knock down; a blow on a downed actor finishes it), `layers.gd` (physics layers: WORLD, ACTORS,
+  BODIES, PROPS).
+- `scripts/weapons/`: `weapon.gd` (abstract, `make(name)`), `melee.gd` (the blow lands at the strike
+  frame, silent), `gun.gd` (cast from the body's centre, through glass, loud), `table.gd` (data).
+- `scripts/world/`: `body.gd` (RigidBody2D corpse thrown by the blow; hits what it flies into),
+  `glass.gd` (breaks, lets shots through), `door.gd` (hinged RigidBody2D, swings, knocks down),
+  `furniture.gd` (pushed and slid), `thrown.gd`, `pickup.gd`, `decals.gd` (blood), `outlines.gd`.
+- `scripts/look.gd`: component, the only file that knows the view: legs turned to the movement,
+  torso to the aim, AnimatedSprite2D from the skin. `scripts/art/`: `char_art.gd` and `prop_art.gd`
+  load the art from a sheet + JSON; **swap the art by swapping the files** (another skin name, or
+  Tandem's export with the same layout).
+- `scripts/controls.gd` (touch + keyboard/mouse), `scripts/sfx.gd` (synthesised sound),
+  `scripts/fx.gd` (tracers, flashes, shards, pops, shake).
+- Art tools (placeholder art until Tandem's replaces it, same JSON): `tools/draw_topdown_chars.py`
+  (skins player, guard, infected: legs 8, walk 8 and an attack per weapon, deaths by cause) and
+  `tools/draw_topdown_world.py` (tiles, props, floor weapons). Re-run them when they change and
+  commit the PNG, JSON and `.import` files.
+- `tests/smoke_test.gd`: the rules, asserted through `controls.override` and `main.spawn()`.
 
 ## Gameplay design
 

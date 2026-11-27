@@ -4,6 +4,9 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-27
 
+- Top-down prototype: the object model (Hit, Actor/Player/Enemy, Brain, Health, Look, Weapon/Melee/Gun),
+  physical corpses that hit what they fly into, breakable glass, hinged doors, pushable furniture, enemies
+  that notice, chase and attack, the club floor, restart and floor clear; code-drawn art in the round-4 look.
 - Top-down rewrite, M2: fists, pipe, bat, pistol and shotgun; throw anything (knockdown, lands as a pickup);
   pick up and swap; tracers, flashes and shake; gun noise recorded for M3.
 - Top-down rewrite, M1: pixel-true view (whole-number scale, numbers in `CLAUDE.md`), player movement
