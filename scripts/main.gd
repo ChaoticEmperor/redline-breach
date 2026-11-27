@@ -1,164 +1,53 @@
 extends Node2D
-## Run lifecycle: builds a floor from a seed, tracks score/combo, and handles
-## death -> instant restart (same seed) and clear -> next floor (seed + 1).
+## REDLINE // 1989, top-down rewrite: milestone M0 skeleton.
+## The 3/4-view game was removed (it lives in git history before this branch).
+## For now this shows one empty placeholder room drawn in code; movement, aim
+## and the pixel-true viewport arrive in M1 (see tasks/future-tasks.md).
 
-const Layout = preload("res://scripts/layout.gd")
-const World = preload("res://scripts/world.gd")
-const Player = preload("res://scripts/player.gd")
-const Enemy = preload("res://scripts/enemy.gd")
-const Fx = preload("res://scripts/fx.gd")
 const Controls = preload("res://scripts/controls.gd")
-const Hud = preload("res://scripts/hud.gd")
+const Sfx = preload("res://scripts/sfx.gd")
 
-const COMBO_TIME := 2.5
+const TILE := 32 # art pixels per tile; a door is one tile
+const ROOM := Vector2i(15, 8) # the placeholder room, in tiles
+const FLOOR := Color("1c1426")
+const SEAM := Color("140e1c")
+const WALL := Color("3a3a40")
+const OUTLINE := Color("000000")
 
-var floor_seed := 1989
-var world
-var player
 var controls
-var hud
-var state := "play" # play | dead | clear
-var cause := ""
-var score := 0
-var combo := 0
-var combo_t := 0.0
-var kills := 0
-var shots := 0
-var deaths := 0
-var floor_time := 0.0
-var state_t := 0.0
-var restart_usec := 0 # how long the last floor (re)build took
-var _hitstop_until := 0
+var sfx
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color("0a0612"))
-	Fx.warm()
+	Sfx.warm()
+	sfx = Sfx.new()
+	add_child(sfx)
 	controls = Controls.new()
 	add_child(controls)
-	hud = Hud.new()
-	hud.main = self
-	add_child(hud)
 	var music := AudioStreamPlayer.new()
-	music.stream = Fx.music()
+	music.stream = Sfx.music()
 	music.volume_db = -16.0
 	add_child(music)
 	music.play()
-	start_floor()
 
 
-## Freezes the action for a few frames so a hit lands with weight.
-func hitstop(ms := 35) -> void:
-	if controls.override:
-		return # headless tests count frames and must not be slowed
-	Engine.time_scale = 0.08
-	_hitstop_until = Time.get_ticks_msec() + ms
+func _process(_delta: float) -> void:
+	queue_redraw()
 
 
-func start_floor() -> void:
-	var t0 := Time.get_ticks_usec()
-	Engine.time_scale = 1.0
-	if world != null:
-		remove_child(world)
-		world.queue_free()
-	var layout := Layout.generate(floor_seed)
-	world = World.new()
-	world.main = self
-	add_child(world)
-	move_child(world, 0)
-	world.build(layout)
-	player = Player.new()
-	player.setup(self, world, controls)
-	player.position = world.center(layout.start)
-	world.add_child(player)
-	for z in layout.zombies:
-		var e := Enemy.new()
-		e.setup(self, world, player, z.kind)
-		e.position = world.center(z.cell)
-		world.add_child(e)
-	controls.player = player
-	controls.clear()
-	state = "play"
-	cause = ""
-	score = 0
-	combo = 0
-	combo_t = 0.0
-	kills = 0
-	shots = 0
-	floor_time = 0.0
-	restart_usec = Time.get_ticks_usec() - t0
-
-
-func _process(delta: float) -> void:
-	if Engine.time_scale < 1.0 and Time.get_ticks_msec() >= _hitstop_until:
-		Engine.time_scale = 1.0
-	state_t += delta
-	var chaining := combo_t > 0.0
-	combo_t = maxf(0.0, combo_t - delta)
-	if chaining and combo_t <= 0.0:
-		_pay_chain()
-	if state == "play":
-		floor_time += delta
-		if controls.take("restart"):
-			start_floor()
-	elif state == "dead":
-		var again: bool = controls.take("any")
-		if again or controls.take("restart"):
-			start_floor()
-	elif state == "clear" and state_t > 0.6 and controls.take("any"):
-		floor_seed += 1
-		deaths = 0
-		start_floor()
-
-
-## Knocking an infected down keeps a chain alive (it does not add to it).
-func on_knockdown() -> void:
-	if combo_t > 0.0:
-		combo_t = COMBO_TIME
-
-
-## A chain of two or more kills pays a bonus when its window runs out; longer
-## chains pay more per kill.
-static func chain_bonus(n: int) -> int:
-	return (100 + 50 * n) * n if n >= 2 else 0
-
-
-func _pay_chain() -> void:
-	var bonus := chain_bonus(combo)
-	combo = 0
-	if bonus <= 0 or state != "play":
-		return
-	score += bonus
-	world.fx.popup(player.global_position + Vector2(0, -46), "CHAIN +%d" % bonus, Color("f9f002"))
-	world.fx.add_punch(0.03)
-
-
-func on_kill(e, executed: bool) -> void:
-	kills += 1
-	combo = combo + 1 if combo_t > 0.0 else 1
-	combo_t = COMBO_TIME
-	var pts: int = e.STATS[e.kind].score * combo * (2 if executed else 1)
-	score += pts
-	world.fx.popup(e.global_position + Vector2(0, -30), "+%d" % pts, Fx.CYAN if not executed else Color("f9f002"))
-	if combo > 1:
-		world.fx.popup(e.global_position + Vector2(0, -40), "x%d" % combo, Color("f9f002"))
-	hitstop()
-	if world.enemy_list.is_empty():
-		world.open_exit()
-
-
-func player_died(why: String) -> void:
-	state = "dead"
-	state_t = 0.0
-	cause = why
-	deaths += 1
-	controls.clear()
-
-
-func floor_cleared() -> void:
-	if state != "play":
-		return
-	state = "clear"
-	state_t = 0.0
-	controls.clear()
-	world.fx.play("clear", 1.5)
+func _draw() -> void:
+	# Centre the room on the canvas at a whole-number scale.
+	var view := get_viewport_rect().size
+	var px := maxf(1.0, floorf(minf(view.x / ((ROOM.x + 2) * TILE), view.y / ((ROOM.y + 2) * TILE))))
+	var size := Vector2((ROOM.x + 2) * TILE, (ROOM.y + 2) * TILE) * px
+	var o := ((view - size) / 2.0).floor()
+	draw_rect(Rect2(o, size), OUTLINE)
+	draw_rect(Rect2(o + Vector2.ONE * px * 2, size - Vector2.ONE * px * 4), WALL)
+	var inner := Rect2(o + Vector2.ONE * TILE * px, Vector2(ROOM) * TILE * px)
+	draw_rect(inner.grow(px * 2), OUTLINE)
+	draw_rect(inner, FLOOR)
+	for x in range(1, ROOM.x):
+		draw_rect(Rect2(inner.position + Vector2(x * TILE * px, 0), Vector2(px, inner.size.y)), SEAM)
+	for y in range(1, ROOM.y):
+		draw_rect(Rect2(inner.position + Vector2(0, y * TILE * px), Vector2(inner.size.x, px)), SEAM)

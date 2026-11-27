@@ -9,12 +9,9 @@ firebase-debug.log
 # Python
 __pycache__/
 
-# Visual polisher output and ad-hoc screenshots
-tools/out/
+# Ad-hoc screenshots
 screenshots/
 
 # Scratch checkouts made by Claude Code subagents
 .claude/worktrees/
 
-# Backups Atelier leaves when tools/refresh_atelier_skills.sh reinstalls its skills
-*.atelier-backup
