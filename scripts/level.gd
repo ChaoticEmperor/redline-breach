@@ -3,7 +3,7 @@ extends RefCounted
 ## tile. The tiles (and which are solid) come from assets/sprites/world/tiles.json, so the art
 ## and the legend can change without touching this file. Floors are drawn in Tandem's tile maps
 ## and exported back as this format (the level files stay the source of truth).
-##   tiles:   .  rose tile   ,  dancefloor   _  carpet   =  wood   w  restroom
+##   tiles:   .  rose tile   ,  dancefloor   ~  carpet   =  wood   w  restroom
 ##            #  wall        C  bar counter  K  booth                      (solid: # C K)
 ##   things:  P player   E guard (pipe)   F gunman (pistol)   Z infected
 ##            l pipe  b bat  i pistol  g shotgun          (weapons on the floor)
@@ -16,26 +16,10 @@ const DIR := "res://assets/sprites/world/"
 const THINGS := {"P": "player", "E": "guard", "F": "gunman", "Z": "infected", "l": "pipe", "b": "bat", "i": "pistol",
 		"g": "shotgun", "G": "glass_h", "|": "glass_v", "D": "door_h", "d": "door_v", "T": "table", "s": "stool"}
 
-const CLUB := """
-##############################
-#=CCCCCCCCC====#____K____K___#
-#=s=s=s=s=s=s==#_____________#
-#===========E==d___T____T____#
-#==============#_____________#
-#====l=========#___Z____F____#
-#######G#G######_____________#
-#.............|______________#
-#..P..........d______g_______#
-#.............################
-#,,,,,,,,,,,,,,,,,,,,#wwwwwww#
-#,,,,,,,,,,,,,,,,,,,,#wwwwwww#
-#,,,,,,Z,,,,,,,,,,,,,#ww|wwww#
-#,,,,,,,,,,,,,,E,,,,,#ww|wwZw#
-#,,,,,,,,,,,,,,,,,,,,#wwwwwww#
-#.....i......T.......d.......#
-#........b...........#.......#
-##############################
-"""
+## The first floor: a bar, a lounge, a lobby, the dancefloor and a restroom. Drawn and edited in
+## Tandem's tile map ("Club floor 1") and exported back to this file.
+static func club() -> String:
+	return FileAccess.get_file_as_string("res://levels/club.txt")
 
 ## An empty test room: a wall with a one-tile doorway (x 7) between two open areas.
 const TEST := """

@@ -132,7 +132,17 @@ types.
   Tandem's export with the same layout).
 - `scripts/controls.gd` (touch + keyboard/mouse), `scripts/sfx.gd` (synthesised sound),
   `scripts/fx.gd` (tracers, flashes, shards, pops, shake).
-- Art tools (placeholder art until Tandem's replaces it, same JSON): `tools/draw_topdown_chars.py`
+- **Art and levels in Tandem** (http://localhost:7480): every animation is a Tandem sprite named
+  `redline-<skin>-<anim>` (48 px cells, deaths 64), the tileset is `redline-club-tiles` (each tile's
+  char, name and `solid` flag set), and the floor is the map `club-floor-1` (stamps for every marker
+  character). Paint there, then `python3 tools/tandem_pull.py` writes the sheets, tiles and
+  `levels/club.txt` back in the game's layouts (a row with no Tandem sprite keeps its code-drawn
+  frames). `tools/tandem_push.py <strip.png> <sprite> --cell 48 --lint` sends a strip the other way.
+  Tandem reserves `_` and space, so carpet is `~`.
+- `levels/*.txt`: the floors (the source of truth; Tandem round-trips them byte for byte). The
+  export includes `*.json, *.txt` (the art layouts and floors are read with FileAccess).
+- Art tools (code-drawn base art, same JSON): `tools/pixelkit.py` (masks, traced outer and inner
+  contours, pixel-perfect thinning, a 2 px heavy side, tinted near-black ink), `tools/draw_topdown_chars.py`
   (skins player, guard, infected: legs 8, walk 8 and an attack per weapon, deaths by cause) and
   `tools/draw_topdown_world.py` (tiles, props, floor weapons). Re-run them when they change and
   commit the PNG, JSON and `.import` files.
