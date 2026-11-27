@@ -147,7 +147,9 @@ types.
   Tandem reserves `_` and space, so carpet is `~`. **Hand-painted sprites are the master:**
   every `redline-player-*` sprite carries a hand pass, so never push generator output over them (edit them in
   Tandem). The guard and infected (`redline-guard-*`, `redline-infected-*`) are recoloured from the player
-  masters (same shapes, their own colours); remake them from the player after a player edit. Frame timing comes from Tandem in whole 60 Hz ticks (`ticks` in the
+  masters (same shapes, their own colours); remake them from the player after a player edit. The runner,
+  bloater and riot sprites (`redline-runner-*`, `redline-bloater-*`, `redline-riot-*`) carry their own hand pass
+  and are masters too. Frame timing comes from Tandem in whole 60 Hz ticks (`ticks` in the
   skin JSON; the game plays each frame for its ticks), so a held pose is a longer frame, not a copy.
 - `levels/*.txt`: the floors (the source of truth; Tandem round-trips them byte for byte). The
   export includes `*.json, *.txt` (the art layouts and floors are read with FileAccess).
