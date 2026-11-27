@@ -140,8 +140,9 @@ types.
   `levels/club.txt` back in the game's layouts (a row with no Tandem sprite keeps its code-drawn
   frames). `tools/tandem_push.py <strip.png> <sprite> --cell 48 --lint` sends a strip the other way.
   Tandem reserves `_` and space, so carpet is `~`. **Hand-painted sprites are the master:**
-  `redline-player-pipe-walk` and `redline-player-pipe-attack` carry a hand pass; never push generator output
-  over them (edit them in Tandem). Frame timing comes from Tandem in whole 60 Hz ticks (`ticks` in the
+  every `redline-player-*` sprite carries a hand pass, so never push generator output over them (edit them in
+  Tandem). The guard and infected (`redline-guard-*`, `redline-infected-*`) are recoloured from the player
+  masters (same shapes, their own colours); remake them from the player after a player edit. Frame timing comes from Tandem in whole 60 Hz ticks (`ticks` in the
   skin JSON; the game plays each frame for its ticks), so a held pose is a longer frame, not a copy.
 - `levels/*.txt`: the floors (the source of truth; Tandem round-trips them byte for byte). The
   export includes `*.json, *.txt` (the art layouts and floors are read with FileAccess).
