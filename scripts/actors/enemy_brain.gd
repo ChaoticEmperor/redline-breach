@@ -13,6 +13,10 @@ const NOTICE := 0.25
 const FIRST_SHOT := 0.45
 const THINK := 0.1 # seconds between sight checks
 const SLOW := 0.55 # walking speed while idle or searching, as a share of full speed
+const LUNGE_RANGE := 110.0 # a lunging enemy charges from this close
+const LUNGE_SPEED := 1.9 # its charge, as a share of its speed (it cannot steer)
+const LUNGE_TIME := 0.38
+const LUNGE_RECOVER := 0.5 # after a charge it stands, catching itself: the player's opening
 
 enum { IDLE, NOTICE_BEAT, CHASE, SEARCH }
 
@@ -27,6 +31,10 @@ var _path := PackedVector2Array()
 var _path_i := 0
 var _repath_t := 0.0
 var _lost_t := 0.0
+var lunges := false
+var lunge_t := 0.0 # > 0 while charging
+var recover_t := 0.0
+var lunge_dir := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -64,6 +72,8 @@ func think(a, delta: float) -> void:
 			if not alive:
 				state = IDLE
 				return
+			if lunges and _lunge(a, p, delta):
+				return
 			if sees:
 				target_pos = p.global_position
 				_lost_t = 0.0
@@ -92,6 +102,30 @@ func think(a, delta: float) -> void:
 			if _follow(a, target_pos, delta, SLOW):
 				state = IDLE
 				facing = a.aim
+
+
+## The charge: once in range and in sight, it runs straight at where the player was, faster than it
+## walks and without turning, then stops to recover. Returns true while it owns the move.
+func _lunge(a, p, delta: float) -> bool:
+	if recover_t > 0.0:
+		recover_t -= delta
+		a.move = Vector2.ZERO
+		return true
+	if lunge_t > 0.0:
+		lunge_t -= delta
+		a.move = lunge_dir * LUNGE_SPEED
+		a.aim = lunge_dir
+		a.want_attack = a.global_position.distance_to(p.global_position) < a.weapon.info.reach + 8.0
+		if lunge_t <= 0.0:
+			recover_t = LUNGE_RECOVER
+		return true
+	var to: Vector2 = p.global_position - a.global_position
+	if sees and to.length() < LUNGE_RANGE and to.length() > 30.0:
+		lunge_t = LUNGE_TIME
+		lunge_dir = to.normalized()
+		a.main.popup(a.global_position + Vector2(0, -16), "!")
+		return true
+	return false
 
 
 func _notice(a) -> void:

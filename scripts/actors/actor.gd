@@ -92,7 +92,7 @@ func _physics_process(delta: float) -> void:
 		_down_tick(delta)
 		return
 	brain.think(self, delta)
-	velocity = velocity.move_toward(move.limit_length(1.0) * speed, speed / ACCEL_TIME * delta)
+	velocity = velocity.move_toward(move.limit_length(2.0) * speed, speed * maxf(move.length(), 1.0) / ACCEL_TIME * delta)
 	move_and_slide()
 	_push_props()
 	_round_corner(move, delta)

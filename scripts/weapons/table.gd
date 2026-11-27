@@ -6,6 +6,7 @@ extends RefCounted
 const TABLE := {
 	"unarmed": {"kind": "melee", "reach": 20.0, "arc": 0.9, "how": "punch", "force": 260.0, "length": 0.0},
 	"claws": {"kind": "melee", "reach": 22.0, "arc": 1.0, "how": "cut", "force": 220.0, "length": 0.0, "art": "unarmed", "drops": false},
+	"shield": {"kind": "melee", "reach": 22.0, "arc": 1.0, "how": "kick", "force": 380.0, "length": 0.0, "drops": false},
 	"pipe": {"kind": "melee", "reach": 30.0, "arc": 1.3, "how": "blunt", "force": 320.0, "length": 18.0},
 	"bat": {"kind": "melee", "reach": 32.0, "arc": 1.4, "how": "blunt", "force": 380.0, "length": 20.0},
 	"pistol": {"kind": "gun", "ammo": 8, "rate": 0.22, "pellets": 1, "spread": 0.03, "range": 380.0,

@@ -4,6 +4,8 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-27
 
+- Enemy kinds by behaviour: runner (charge), bloater (burst with a readable fuse ring), riot guard
+  (frontal shield); their art in Tandem; glass, broken glass and door hand-drawn in Tandem; props round-trip.
 - Top-down prototype: the object model (Hit, Actor/Player/Enemy, Brain, Health, Look, Weapon/Melee/Gun),
   physical corpses that hit what they fly into, breakable glass, hinged doors, pushable furniture, enemies
   that notice, chase and attack, the club floor, restart and floor clear; code-drawn art in the round-4 look.

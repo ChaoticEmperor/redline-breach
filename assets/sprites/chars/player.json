@@ -191,8 +191,30 @@
     24
    ]
   },
-  "dead_blunt": {
+  "shield_walk": {
    "y": 560,
+   "cell": 48,
+   "frames": 8,
+   "fps": 10,
+   "loop": true,
+   "anchor": [
+    22,
+    24
+   ]
+  },
+  "shield_attack": {
+   "y": 608,
+   "cell": 48,
+   "frames": 6,
+   "fps": 24,
+   "loop": false,
+   "anchor": [
+    22,
+    24
+   ]
+  },
+  "dead_blunt": {
+   "y": 656,
    "cell": 64,
    "frames": 3,
    "fps": 1,
@@ -208,7 +230,7 @@
    ]
   },
   "dead_shot": {
-   "y": 624,
+   "y": 720,
    "cell": 64,
    "frames": 3,
    "fps": 1,
@@ -219,7 +241,7 @@
    ]
   },
   "dead_cut": {
-   "y": 688,
+   "y": 784,
    "cell": 64,
    "frames": 3,
    "fps": 1,

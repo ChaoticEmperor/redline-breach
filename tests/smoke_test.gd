@@ -128,7 +128,11 @@ func _run() -> void:
 	await frames(5)
 	cc = main.controls
 	cc.override = true
-	ok(main.enemies().size() == 6 and main.player != null, "the club floor builds with the player and 6 enemies")
+	var want_enemies := 0
+	for t in Level.parse(Level.club()).things:
+		if t.what in ["guard", "gunman", "infected", "runner", "bloater", "riot"]:
+			want_enemies += 1
+	ok(main.enemies().size() == want_enemies and main.player != null, "the club floor builds with the player and its %d enemies" % want_enemies)
 	ok(main.restart_usec < 200000, "a floor builds in under 0.2 s (%d ms)" % (main.restart_usec / 1000))
 
 	print("== movement ==")
@@ -267,6 +271,50 @@ func _run() -> void:
 	var drawn: int = main.enemies().filter(func(x): return x.brain.state == x.brain.SEARCH).size()
 	ok(drawn == Main.NOISE_DRAWS, "a noise draws only the nearest %d enemies (%d)" % [Main.NOISE_DRAWS, drawn])
 
+	print("== enemy kinds ==")
+	const Burst = preload("res://scripts/world/burst.gd")
+	await fresh()
+	place(Vector2(4.5, 6.5) * 32.0, Vector2.RIGHT)
+	main.player.health.invulnerable = true
+	var run = main.spawn("runner", Vector2(8.0, 6.5) * 32.0, Vector2.LEFT)
+	var top := 0.0
+	for i in 50:
+		await physics_frame
+		if is_instance_valid(run):
+			top = maxf(top, run.velocity.length())
+	ok(top > run.speed * 1.4, "a runner charges faster than it walks (%.0f against %.0f)" % [top, run.speed])
+	await fresh()
+	ok(Burst.FUSE >= Burst.REACTION + Burst.RADIUS / 192.0, "a burst's fuse leaves time to step out of its reach")
+	place(Vector2(3.5, 6.5) * 32.0, Vector2.RIGHT)
+	var blo = main.spawn("bloater", Vector2(12.5, 6.5) * 32.0, Vector2.LEFT)
+	var near = main.spawn("guard", Vector2(13.5, 6.5) * 32.0, Vector2.LEFT)
+	var pane2 = main.spawn("glass_h", Vector2(12.5, 5.5) * 32.0)
+	await frames(2)
+	blo.take_hit(Hit.make("shot", Vector2.RIGHT, 100.0, main.player, "player"))
+	await frames(5)
+	ok(not gone(near) and main.get_tree().get_nodes_in_group("bursts").size() == 1, "a dead bloater does not burst at once: the fuse shows first")
+	await frames(int(Burst.FUSE * 60) + 5)
+	ok(gone(near), "the burst kills an enemy inside its reach")
+	ok(pane2.broken, "the burst breaks glass inside its reach")
+	ok(not main.player.dead, "the player outside the reach is unharmed")
+	await fresh()
+	var riot = main.spawn("riot", Vector2(9.5, 6.5) * 32.0, Vector2.LEFT)
+	await frames(2)
+	riot.aim = Vector2.LEFT
+	riot.take_hit(Hit.make("shot", Vector2.RIGHT, 260.0, main.player, "player"))
+	await frames(2)
+	ok(not gone(riot), "a riot guard's shield stops a shot from the front")
+	riot.aim = Vector2.LEFT
+	riot.take_hit(Hit.make("kick", Vector2.RIGHT, 340.0, main.player, "player"))
+	await frames(2)
+	ok(not gone(riot) and riot.is_down(), "a kick from the front knocks it down")
+	var riot2 = main.spawn("riot", Vector2(14.5, 2.5) * 32.0, Vector2.LEFT)
+	await frames(2)
+	riot2.aim = Vector2.LEFT
+	riot2.take_hit(Hit.make("shot", Vector2.LEFT, 260.0, main.player, "player"))
+	await frames(2)
+	ok(gone(riot2), "a shot from behind kills it")
+
 	print("== the loop ==")
 	await fresh()
 	place(Vector2(4.5, 6.5) * 32.0, Vector2.RIGHT)
@@ -276,10 +324,10 @@ func _run() -> void:
 	await fresh(Level.club())
 	cc.press("restart")
 	await frames(2)
-	ok(main.state == "play" and main.enemies().size() == 6 and main.restart_usec < 200000,
+	ok(main.state == "play" and main.enemies().size() == want_enemies and main.restart_usec < 200000,
 			"R restarts the same floor in under 0.2 s (%d ms)" % (main.restart_usec / 1000))
 	for x in main.enemies():
-		x.take_hit(Hit.make("shot", Vector2.RIGHT, 200.0, main.player, "player"))
+		x.take_hit(Hit.make("blast", Vector2.RIGHT, 200.0, main.player, "player"))
 	await frames(3)
 	ok(main.state == "clear", "the floor is clear when every enemy is dead")
 

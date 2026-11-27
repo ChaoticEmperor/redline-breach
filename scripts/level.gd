@@ -5,7 +5,7 @@ extends RefCounted
 ## and exported back as this format (the level files stay the source of truth).
 ##   tiles:   .  rose tile   ,  dancefloor   ~  carpet   =  wood   w  restroom
 ##            #  wall        C  bar counter  K  booth                      (solid: # C K)
-##   things:  P player   E guard (pipe)   F gunman (pistol)   Z infected
+##   things:  P player   E guard (pipe)   F gunman (pistol)   Z infected   R runner   O bloater   A riot (shield)
 ##            l pipe  b bat  i pistol  g shotgun          (weapons on the floor)
 ##            G glass (horizontal)  | glass (vertical)  D door (horizontal)  d door (vertical)
 ##            T table   s stool
@@ -13,7 +13,7 @@ extends RefCounted
 
 const TILE := 32
 const DIR := "res://assets/sprites/world/"
-const THINGS := {"P": "player", "E": "guard", "F": "gunman", "Z": "infected", "l": "pipe", "b": "bat", "i": "pistol",
+const THINGS := {"P": "player", "E": "guard", "F": "gunman", "Z": "infected", "R": "runner", "O": "bloater", "A": "riot", "l": "pipe", "b": "bat", "i": "pistol",
 		"g": "shotgun", "G": "glass_h", "|": "glass_v", "D": "door_h", "d": "door_v", "T": "table", "s": "stool"}
 
 ## The first floor: a bar, a lounge, a lobby, the dancefloor and a restroom. Drawn and edited in

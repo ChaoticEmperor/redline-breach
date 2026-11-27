@@ -143,7 +143,7 @@ func build(text: String) -> void:
 func spawn(what: String, pos: Vector2, facing := Vector2.RIGHT) -> Node:
 	var n: Node
 	match what:
-		"guard", "gunman", "infected":
+		"guard", "gunman", "infected", "runner", "bloater", "riot":
 			n = Enemy.new()
 			n.setup_enemy(self, what, facing)
 			n.position = pos

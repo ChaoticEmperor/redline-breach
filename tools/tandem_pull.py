@@ -90,6 +90,27 @@ def pull_tiles(have: set[str]) -> None:
     print(f"tiles: {len(fr)} from Tandem")
 
 
+def pull_props(have: set[str]) -> None:
+    """Each prop or floor weapon is a Tandem sprite redline-prop-<name>; frame 0 replaces its rect."""
+    meta = json.loads((ROOT / "assets/sprites/world/props.json").read_text())
+    png = ROOT / "assets/sprites/world/props.png"
+    sheet = Image.open(png).convert("RGBA")
+    pulled = 0
+    for name, (x, y, w, h) in meta.items():
+        doc = f"redline-prop-{name.replace('_', '-')}"
+        if doc not in have:
+            continue
+        fr = frames_of(doc, 0)[0]
+        if fr.size != (w, h):
+            print(f"  {doc}: {fr.size} in Tandem, the layout has {(w, h)}: skipped")
+            continue
+        sheet.paste(Image.new("RGBA", (w, h)), (x, y))
+        sheet.alpha_composite(fr, (x, y))
+        pulled += 1
+    sheet.save(png)
+    print(f"props: {pulled} from Tandem")
+
+
 def pull_map(map_id: str, out: Path) -> None:
     text = get(f"/api/m/{map_id}/redline.txt").decode()
     out.write_text(text if text.endswith("\n") else text + "\n")
@@ -102,9 +123,10 @@ def main() -> None:
     ap.add_argument("--no-map", action="store_true")
     a = ap.parse_args()
     have = docs()
-    for skin in a.skin or ["player", "guard", "infected"]:
+    for skin in a.skin or ["player", "guard", "infected", "runner", "bloater", "riot"]:
         pull_skin(skin, have)
     pull_tiles(have)
+    pull_props(have)
     if not a.no_map:
         pull_map("club-floor-1", ROOT / "levels/club.txt")
 
