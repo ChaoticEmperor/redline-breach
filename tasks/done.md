@@ -4,6 +4,8 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-27
 
+- Top-down rewrite, M2: fists, pipe, bat, pistol and shotgun; throw anything (knockdown, lands as a pickup);
+  pick up and swap; tracers, flashes and shake; gun noise recorded for M3.
 - Top-down rewrite, M1: pixel-true view (whole-number scale, numbers in `CLAUDE.md`), player movement
   (0.1 s acceleration, corner rounding), aim, camera lead and LOOK, the `Look` node with a placeholder body;
   controls remapped (THROW, KICK/EXEC, LOOK; no dash).

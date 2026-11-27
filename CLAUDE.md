@@ -106,7 +106,13 @@ M6 Tandem art pass → M7 grade screen. The plan and Paul's answers are in `task
 - `project.godot`, `export_presets.cfg` (preset `Web`, no threads), `main.tscn` (root node + `scripts/main.gd`).
 - `scripts/main.gd` — the pixel-true view, floor build, camera (leads toward the aim; LOOK pushes it far).
 - `scripts/level.gd` — ASCII floor map → `TileMapLayer` (placeholder tileset with wall collision).
-- `scripts/player.gd` — movement (0.1 s acceleration, corner rounding) and aim. `scripts/look.gd` — how an actor
+- `scripts/player.gd` — movement (0.1 s acceleration, corner rounding), aim, attack, throw, pick up.
+- `scripts/weapons.gd` — the weapon table: melee (silent, one hit in an arc, the blow lands at the strike, then a
+  held frame), guns (own ammo only, no reloads, loud: `Main.noise`), fists (knock down only). Anything thrown
+  knocks down and lands as a pickup (`thrown.gd`, `pickup.gd`). Shots are cast from the body's centre along the
+  aim (seeded spread, `Main.rng`); flash and tracer start at the muzzle (`Look.tip_global()`).
+- `scripts/fx.gd` — tracers, flashes and the shake budget, inside the pixel-true view, in hard colour steps.
+- Physics layers: 1 walls, 2 bodies that can be hit (enemies), 3 the player. `scripts/look.gd` — how an actor
   is drawn (legs turned to the movement, torso to the aim); the only file that knows the view.
 - `scripts/controls.gd` — touch sticks/buttons + keyboard/mouse. `scripts/sfx.gd` — synthesised sound and music.
 - `tools/tandem_push.py` — put a sheet into a Tandem sprite to play, lint or hand-paint it.

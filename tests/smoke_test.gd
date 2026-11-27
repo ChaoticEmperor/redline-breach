@@ -11,6 +11,29 @@ const Player = preload("res://scripts/player.gd")
 var fails := 0
 
 
+## A stand-in enemy for the weapon checks (real enemies arrive in M3).
+class Dummy extends CharacterBody2D:
+	var dead := false
+	var down := false
+	var how := ""
+
+	func _init() -> void:
+		collision_layer = 2
+		collision_mask = 1
+		var shape := CollisionShape2D.new()
+		var c := CircleShape2D.new()
+		c.radius = 9.0
+		shape.shape = c
+		add_child(shape)
+
+	func hit(_dir: Vector2, p_how: String) -> void:
+		dead = true
+		how = p_how
+
+	func knockdown(_dir: Vector2) -> void:
+		down = true
+
+
 func _initialize() -> void:
 	_run()
 
@@ -27,6 +50,40 @@ func ok(cond: bool, msg: String) -> void:
 	print(("  ok    " if cond else "  FAIL  ") + msg)
 	if not cond:
 		fails += 1
+
+
+func _dummy(main, at: Vector2):
+	var d := Dummy.new()
+	d.position = at
+	main.world.add_child(d)
+	await physics_frame
+	return d
+
+
+## Holds fire for one frame, then waits `n` frames.
+func _attack(p, cc, n: int) -> void:
+	p.cd = 0.0
+	cc.fire = true
+	await physics_frame
+	cc.fire = false
+	await _frames(n)
+
+
+## Where a shotgun blast's pellets end, fired right from the open floor on a fresh floor seed.
+func _spread(main, p, cc) -> Array:
+	main.rng.seed = main.floor_seed
+	p.weapon = "shotgun"
+	p.ammo = 4
+	p.global_position = Vector2(4.5, 2.5) * 32.0
+	p.reset_physics_interpolation()
+	cc.aim = Vector2.RIGHT
+	await physics_frame
+	main.fx.tracers.clear()
+	await _attack(p, cc, 1)
+	var out := []
+	for t in main.fx.tracers:
+		out.append(Vector2i(t[1]))
+	return out
 
 
 func _frames(n: int) -> void:
@@ -132,6 +189,91 @@ func _run() -> void:
 	lead = main.camera.position.x - p.global_position.x
 	ok(lead > Main.LOOK_FAR * 0.8, "holding LOOK pushes the camera far ahead (%.0f px)" % lead)
 	cc.look = false
+
+	print("== weapons ==")
+	var W = preload("res://scripts/weapons.gd")
+	ok(main.get_tree().get_nodes_in_group("pickups").size() == 2, "the test room has a pipe and a pistol on the floor")
+	var spot := Vector2(10.5, 2.5) * 32.0 # open floor above the wall
+	cc.aim = Vector2.RIGHT
+	# Fists knock down, never kill.
+	var d = await _dummy(main, spot + Vector2(16, 0))
+	p.global_position = spot
+	p.reset_physics_interpolation()
+	await _attack(p, cc, 20)
+	ok(d.down and not d.dead, "a punch knocks down and does not kill")
+	d.queue_free()
+	# Melee kills in one hit in front, misses behind, and is silent.
+	p.weapon = "pipe"
+	var front = await _dummy(main, spot + Vector2(22, 0))
+	var back = await _dummy(main, spot + Vector2(-22, 0))
+	var heard: int = main.noises.size()
+	await _attack(p, cc, 30)
+	ok(front.dead and front.how == "blunt", "a pipe kills in one hit in front")
+	ok(not back.dead, "a swing does not hit behind the player")
+	ok(main.noises.size() == heard, "melee is silent")
+	front.queue_free()
+	back.queue_free()
+	# The blow lands after the strike, not on the first frame.
+	var late = await _dummy(main, spot + Vector2(22, 0))
+	cc.fire = true
+	await _frames(2)
+	cc.fire = false
+	ok(not late.dead, "the swing has not landed after 2 frames")
+	await _frames(30)
+	ok(late.dead, "the swing lands during its strike")
+	late.queue_free()
+	# Guns: one hit kills, each shot costs a round, shots are loud, an empty gun clicks.
+	p.weapon = "pistol"
+	p.ammo = W.full_ammo("pistol")
+	var far = await _dummy(main, spot + Vector2(150, 0))
+	heard = main.noises.size()
+	await _attack(p, cc, 3)
+	ok(far.dead and far.how == "shot", "a pistol shot kills at 150 px")
+	ok(p.ammo == W.full_ammo("pistol") - 1, "a shot costs one round (%d left)" % p.ammo)
+	ok(main.noises.size() == heard + 1 and main.noises[-1][1] >= 300.0, "a shot is loud")
+	far.queue_free()
+	p.ammo = 0
+	var safe = await _dummy(main, spot + Vector2(150, 0))
+	await _attack(p, cc, 3)
+	ok(not safe.dead and p.weapon == "pistol", "an empty gun does nothing and stays in hand")
+	safe.queue_free()
+	var walled = await _dummy(main, spot + Vector2(0, 96)) # beyond the wall row
+	p.ammo = 3
+	cc.aim = Vector2.DOWN
+	await _attack(p, cc, 3)
+	ok(not walled.dead, "shots stop at walls")
+	walled.queue_free()
+	cc.aim = Vector2.RIGHT
+	# Throw: knocks down, does not kill, lands as a pickup with its ammo.
+	p.weapon = "pistol"
+	p.ammo = 3
+	var tgt = await _dummy(main, spot + Vector2(120, 0))
+	cc.press("throw")
+	await _frames(40)
+	ok(tgt.down and not tgt.dead, "a thrown gun knocks down without killing")
+	ok(p.weapon == W.FISTS, "throwing empties the hands")
+	var landed = null
+	for pk in main.get_tree().get_nodes_in_group("pickups"):
+		if pk.global_position.distance_to(tgt.global_position) < 40.0:
+			landed = pk
+	ok(landed != null and landed.weapon == "pistol" and landed.ammo == 3, "the thrown gun lands near the target with its ammo")
+	tgt.queue_free()
+	# Pick up: standing on it and pressing takes it; THROW with empty hands also takes.
+	p.global_position = landed.global_position
+	p.reset_physics_interpolation()
+	await _frames(2)
+	cc.press("throw")
+	await _frames(2)
+	ok(p.weapon == "pistol" and p.ammo == 3, "THROW with empty hands picks up the weapon underfoot")
+	main.drop("shotgun", 4, p.global_position)
+	cc.press("pickup")
+	await _frames(2)
+	var swapped := false
+	for pk in main.get_tree().get_nodes_in_group("pickups"):
+		swapped = swapped or (pk.weapon == "pistol" and pk.global_position.distance_to(p.global_position) < 4.0)
+	ok(p.weapon == "shotgun" and swapped, "picking up swaps, dropping the old weapon at the feet")
+	# Shotgun spread replays the same after a rebuild with the same seed.
+	ok(await _spread(main, p, cc) == await _spread(main, p, cc), "shotgun spread replays the same from the same floor seed")
 
 	print("== %s ==" % ("PASS" if fails == 0 else "%d FAILED" % fails))
 	quit(0 if fails == 0 else 1)
