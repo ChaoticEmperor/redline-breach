@@ -115,7 +115,11 @@ types.
   at the top of the file; tiles and their solid flags come from `assets/sprites/world/tiles.json`.
   Floors are drawn in Tandem's tile maps and round-tripped as this format; the file stays the source.
 - `scripts/actors/`: `actor.gd` (abstract base: moves, aims, holds a Weapon, knocked down or dies
-  into a Body), `player.gd` and `enemy.gd` (subclasses: a different Brain and skin), `brain.gd`
+  into a Body), `player.gd` and `enemy.gd` (subclasses: a different Brain and skin; `Enemy.KINDS`
+  differ by behaviour: guard, gunman, infected, **runner** (charges in a line it cannot steer, then
+  recovers), **bloater** (bursts after a fuse with a ring at the exact reach, `world/burst.gd`; the
+  blast is a lethal Hit to everything inside, glass and props included), **riot** (a shield stops
+  shots and blows from the front; kick it down or hit it from behind)), `brain.gd`
   (abstract), `player_brain.gd` (the controls), `enemy_brain.gd` (sight cone on staggered frames,
   0.25 s notice, A* chase, search, first-shot delay).
 - `scripts/core/`: `hit.gd`, `health.gd` (component: one lethal hit kills; punch, kick and impact
@@ -137,7 +141,8 @@ types.
   `redline-<skin>-<anim>` (48 px cells, deaths 64), the tileset is `redline-club-tiles` (each tile's
   char, name and `solid` flag set), and the floor is the map `club-floor-1` (stamps for every marker
   character). Paint there, then `python3 tools/tandem_pull.py` writes the sheets, tiles and
-  `levels/club.txt` back in the game's layouts (a row with no Tandem sprite keeps its code-drawn
+  `levels/club.txt` back in the game's layouts (props and floor weapons too: one sprite each,
+  `redline-prop-<name>`, frame 0 at its rect in `props.json`) (a row with no Tandem sprite keeps its code-drawn
   frames). `tools/tandem_push.py <strip.png> <sprite> --cell 48 --lint` sends a strip the other way.
   Tandem reserves `_` and space, so carpet is `~`. **Hand-painted sprites are the master:**
   every `redline-player-*` sprite carries a hand pass, so never push generator output over them (edit them in

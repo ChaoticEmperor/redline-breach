@@ -45,8 +45,20 @@ SKINS = {
     "infected": {"jacket": "#5e7a78", "jacket_shade": "#3c5050", "jacket_light": "#7e9a96", "hair": "#5a6448",
                  "hair_light": "#8a9a6a", "hair_dark": "#3e4632", "skin": "#8a9a6a", "skin_shade": "#66764e",
                  "trousers": "#4a3a2a", "trousers_light": "#62503a", "shoes": "#1a1414", "shirt": "#5e7a78"},
+    # runner: a lean infected in a faded red tracksuit
+    "runner": {"jacket": "#8a2a34", "jacket_shade": "#5a1820", "jacket_light": "#b0444c", "hair": "#4a5236",
+               "hair_light": "#7a8a5a", "hair_dark": "#323a24", "skin": "#8a9a6a", "skin_shade": "#66764e",
+               "trousers": "#8a2a34", "trousers_light": "#b0444c", "shoes": "#d8d0c0", "shirt": "#8a2a34", "bulk": 0.9},
+    # bloater: a swollen infected, stained vest stretched over it
+    "bloater": {"jacket": "#b8ae7a", "jacket_shade": "#7e7650", "jacket_light": "#d4cc96", "hair": "#6a7a4a",
+                "hair_light": "#9aae6a", "hair_dark": "#4a5634", "skin": "#9aae6a", "skin_shade": "#6e8048",
+                "trousers": "#4a3a2a", "trousers_light": "#62503a", "shoes": "#1a1414", "shirt": "#b8ae7a", "bulk": 1.3},
+    # riot: armoured from the front, a helmet and a shield
+    "riot": {"jacket": "#2c3a6a", "jacket_shade": "#1c2448", "jacket_light": "#45558a", "hair": "#30343c",
+             "hair_light": "#5a6070", "hair_dark": "#1c1e24", "skin": "#e0a882", "skin_shade": "#b07856",
+             "trousers": "#1c2448", "trousers_light": "#2c3a6a", "shoes": "#141418", "shirt": "#2c3a6a"},
 }
-WEAPONS = ["unarmed", "pipe", "bat", "pistol", "shotgun"]
+WEAPONS = ["unarmed", "pipe", "bat", "pistol", "shotgun", "shield"]
 STEEL, STEEL_DARK, WOOD, WOOD_DARK, GUNMETAL = "#bfbfbf", "#808080", "#b07850", "#6b3e2a", "#404040"
 
 
@@ -115,6 +127,7 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
     turn: the torso turning a little with the stride (px the shoulders shift); cell: the frame size."""
     cv = Canvas(cell, cell)
     off = (cell - CELL) // 2
+    bulk = p.get("bulk", 1.0)
     cx, cy = ANCHOR[0] + off - recoil, ANCHOR[1] + off
     pivot = (cx, cy + PIVOT_DY)
     gun = weapon in ("pistol", "shotgun")
@@ -124,22 +137,26 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
     elif gun:
         hand_r = (cx + 9, cy + 3)
     else:
-        hand_r = (cx + 7 + arm_r + lunge, cy + 9)
-    hand_l = (cx + 9, cy - 2) if weapon == "shotgun" else (cx + 7 + arm_l, cy - 9)
+        hand_r = (cx + 7 + arm_r + lunge, cy + 9 * bulk)
+    hand_l = (cx + 9, cy - 2) if weapon == "shotgun" else (cx + 7 + arm_l, cy - 9 * bulk)
+    if weapon == "shield":
+        hand_r = (cx + 6 + lunge, cy + 6)
+        hand_l = (cx + 6 + lunge, cy - 6)
     # back to front: weapon, arms, shoulders, head, hands (a hand grips over the weapon)
     if melee:
         weapon_part(cv, hand_r, swing if swing is not None else 35, weapon)
     elif gun:
         weapon_part(cv, (cx + 8, cy + 1), 0, weapon)
     for side, hand in ((-1, hand_l), (1, hand_r)):
-        sh = (cx - 1, cy + side * (8.5 + sway * side * 0.5))
+        sh = (cx - 1, cy + side * (8.5 * bulk + sway * side * 0.5))
         cv.add(cv.seg(sh, hand, 1.6), hexc(p["jacket_shade"]))
     oy = sway * 0.5
     sx = cx - 1 + turn
     crest = lambda c, r2: (r2 > 0.30) & (r2 < 0.62) & (c.xx + 0.5 < sx + 2)
-    cv.add(cv.ellipse(sx, cy + oy, 6.5, 11.5),
-           cv.shade(p["jacket"], p["jacket_shade"], p["jacket_light"], sx, cy + oy, 6.5, 11.5, 0.72, crest),
-           heavy=(cv.xx + 0.5 < cx - 3) & (np.abs(cv.yy + 0.5 - cy - oy) < 8.5))  # 2 px outline on the back, not round the tips
+    rx, ry = 6.5 * bulk, 11.5 * bulk
+    cv.add(cv.ellipse(sx, cy + oy, rx, ry),
+           cv.shade(p["jacket"], p["jacket_shade"], p["jacket_light"], sx, cy + oy, rx, ry, 0.72, crest),
+           heavy=(cv.xx + 0.5 < cx - 3) & (np.abs(cv.yy + 0.5 - cy - oy) < ry - 3))  # 2 px outline on the back, not round the tips
     hair = cv.shade(p["hair"], p["hair_dark"], p["hair_light"], cx + 0.5, cy, 4.8, 4.8, 0.62,
                     lambda c, r2: ((c.xx + 0.5 - (cx - 0.5)) ** 2 + (c.yy + 0.5 - cy) ** 2) < 2.6)
     def head_col(c, mask):
@@ -150,6 +167,14 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
     cv.add(cv.ellipse(cx + 0.5, cy, 4.8, 4.8), head_col)
     for hand in (hand_l, hand_r):
         cv.add(cv.ellipse(hand[0], hand[1], 1.8, 1.8), hexc(p["skin"]))
+    if weapon == "shield":  # held in front of the hands: a riot shield seen edge-on from above, light rim on top
+        x0 = cx + 8 + lunge
+        def shield_col(c, mask):
+            out = np.zeros((c.h, c.w, 4), np.uint8)
+            out[:] = hexc("#50586a")
+            out[(c.xx.astype(int) == int(x0))] = hexc("#8a94a8")
+            return out
+        cv.add(cv.rect(x0, cy - 11, x0 + 2, cy + 11), shield_col)
     img = cv.finish()
     if smear:
         # the arc the weapon tip just swept, as a broken trail of white pixels (drawn after the line art,
@@ -188,6 +213,8 @@ def attack_frames(p, weapon):
         return out
     if weapon == "unarmed":
         return [torso_frame(p, weapon, lunge=v) for v in (0, 4, 9, 9, 5, 1)]
+    if weapon == "shield":  # a shove: the shield driven forward, held, pulled back
+        return [torso_frame(p, weapon, lunge=v) for v in (0, 3, 7, 7, 4, 1)]
     return [torso_frame(p, weapon, recoil=v) for v in (0, 2, 1)]
 
 
@@ -249,7 +276,7 @@ def build(skin: str) -> None:
     for w in WEAPONS:
         rows.append((f"{w}_walk", walk_frames(p, w), CELL, 10, True))
         rows.append((f"{w}_attack", attack_frames(p, w), SWING_CELL if w in ("pipe", "bat") else CELL,
-                     24 if w in ("pipe", "bat", "unarmed") else 30, False))
+                     24 if w in ("pipe", "bat", "unarmed", "shield") else 30, False))
     for cause in ("blunt", "shot", "cut"):
         rows.append((f"dead_{cause}", [corpse(p, 11 * i + len(cause), cause) for i in range(3)], DEAD, 1, False))
     width = max(len(fr) * cell for _, fr, cell, _, _ in rows)
