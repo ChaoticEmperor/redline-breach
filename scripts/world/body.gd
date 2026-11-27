@@ -10,6 +10,10 @@ const Hit = preload("res://scripts/core/hit.gd")
 const IMPACT_SPEED := 110.0 # slower than this it just bumps
 
 var main
+var spr: Sprite2D
+var _frames: Array = [] # optional animation: textures played once over _anim_len seconds (a bloater swelling)
+var _anim_len := 0.0
+var _anim_t := 0.0
 var _settled := false
 var _vel := Vector2.ZERO # the velocity before this tick's contacts slowed it
 
@@ -31,7 +35,7 @@ func setup(p_main, tex: Texture2D, push: Vector2, dir: Vector2) -> void:
 	shape.shape = cap
 	shape.rotation = PI / 2.0
 	add_child(shape)
-	var spr := Sprite2D.new()
+	spr = Sprite2D.new()
 	spr.texture = tex
 	add_child(spr)
 	rotation = (-dir).angle() + PI # head away from the blow
@@ -53,7 +57,18 @@ func take_hit(hit) -> void: # kicked or shot again: pushed again
 	apply_central_impulse(hit.dir * hit.force * 0.5)
 
 
-func _physics_process(_delta: float) -> void:
+## Plays `frames` once over `seconds`, holding the last (a bloater's body inflating before it bursts).
+func animate(frames: Array, seconds: float) -> void:
+	_frames = frames
+	_anim_len = seconds
+	_anim_t = 0.0
+	spr.texture = frames[0]
+
+
+func _physics_process(delta: float) -> void:
+	if not _frames.is_empty():
+		_anim_t += delta
+		spr.texture = _frames[mini(int(_anim_t / _anim_len * _frames.size()), _frames.size() - 1)]
 	_vel = linear_velocity
 	if not _settled and linear_velocity.length() < 6.0:
 		_settled = true

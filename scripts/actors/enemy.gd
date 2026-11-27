@@ -51,9 +51,12 @@ func take_hit(hit) -> void:
 
 
 func _on_died(hit) -> void:
+	super._on_died(hit)
 	if KINDS[kind].get("burst", false):
+		# the body swells over the fuse (the warning you can see on the body itself), then pops
 		var b := Burst.new()
-		b.setup(main)
+		b.setup(main, last_body)
 		b.position = global_position
 		main.world.add_child(b)
-	super._on_died(hit)
+		if last_body != null:
+			last_body.animate(main.anim_textures(skin, "dead_swell"), Burst.FUSE)
