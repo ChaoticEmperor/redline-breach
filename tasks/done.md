@@ -4,6 +4,9 @@ Newest first. One line per piece of work that reached `develop`; `git log` has t
 
 ## 2026-11-27
 
+- Top-down rewrite, M1: pixel-true view (whole-number scale, numbers in `CLAUDE.md`), player movement
+  (0.1 s acceleration, corner rounding), aim, camera lead and LOOK, the `Look` node with a placeholder body;
+  controls remapped (THROW, KICK/EXEC, LOOK; no dash).
 - Top-down rewrite, M0: the 3/4 game was removed (tools, assets, atelier skills, scripts); CI, the web shell,
   touch controls and the synthesised sound were kept; an empty placeholder room runs. The earlier entries below
   describe the removed 3/4 game.
