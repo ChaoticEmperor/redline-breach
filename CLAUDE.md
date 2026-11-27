@@ -132,7 +132,8 @@ types.
   Tandem's export with the same layout).
 - `scripts/controls.gd` (touch + keyboard/mouse), `scripts/sfx.gd` (synthesised sound),
   `scripts/fx.gd` (tracers, flashes, shards, pops, shake).
-- **Art and levels in Tandem** (http://localhost:7480): every animation is a Tandem sprite named
+- **Art and levels in Tandem** (http://localhost:7480), all in the Tandem project **"REDLINE Breach"**
+  (pass `--project "REDLINE Breach"`, or `project` in the API, for anything new): every animation is a Tandem sprite named
   `redline-<skin>-<anim>` (48 px cells, deaths 64), the tileset is `redline-club-tiles` (each tile's
   char, name and `solid` flag set), and the floor is the map `club-floor-1` (stamps for every marker
   character). Paint there, then `python3 tools/tandem_pull.py` writes the sheets, tiles and

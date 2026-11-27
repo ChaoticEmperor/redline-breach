@@ -3,7 +3,7 @@ hand-painted there (Tandem: ~/PersonalProjects/tandem, http://localhost:7480).
 
     python3 tools/tandem_push.py sheet.png <sprite-id> --cell 112 [--ms 125,125,...] [--lint]
 
-Makes the sprite if it is missing, replaces its palette with the sheet's colours (locked),
+Makes the sprite if it is missing (in the Tandem project "REDLINE Breach", or $TANDEM_PROJECT), replaces its palette with the sheet's colours (locked),
 gives it as many frames as the sheet has cells, and paints every frame. With --lint it prints
 Tandem's lint per frame. Paints only sprites this tool made or that you name: never "main".
 """
@@ -19,6 +19,7 @@ from PIL import Image
 
 URL = os.environ.get("TANDEM_URL", "http://localhost:7480")
 AUTHOR = os.environ.get("TANDEM_AUTHOR", "flora")
+PROJECT = os.environ.get("TANDEM_PROJECT", "REDLINE Breach")  # every REDLINE sprite lives in this Tandem project
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
@@ -50,7 +51,7 @@ def main() -> None:
         raise SystemExit(f"{len(cols)} colours: more than the text format's {len(LETTERS)} letters")
     ids = [d["id"] for d in call("/api/docs")]
     if a.sprite not in ids:
-        call("/api/docs", {"name": a.sprite, "width": a.cell, "height": a.cell})
+        call("/api/docs", {"name": a.sprite, "width": a.cell, "height": a.cell, "project": PROJECT})
     d = f"/api/d/{a.sprite}"
     cv = call(f"{d}/canvas")
     if (cv.get("width"), cv.get("height")) != (a.cell, a.cell):
