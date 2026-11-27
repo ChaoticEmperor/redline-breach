@@ -90,7 +90,7 @@ def booth(d):  # booth seat: olive cushions, outlined
     d.line((T // 2, 10, T // 2, T - 4), fill=C("#46521f"))
 
 
-TILES = [(".", "rose tile", rose, False), (",", "dancefloor", dance, False), ("_", "carpet", carpet, False),
+TILES = [(".", "rose tile", rose, False), (",", "dancefloor", dance, False), ("~", "carpet", carpet, False),
          ("=", "wood floor", wood, False), ("w", "restroom tile", cream, False), ("#", "wall", wall, True),
          ("C", "bar counter", counter, True), ("K", "booth", booth, True)]
 

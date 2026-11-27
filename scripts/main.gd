@@ -43,7 +43,7 @@ var decals
 var hud: Label
 var view_scale := 1
 var floor_seed := 1989
-var level_text := Level.CLUB
+var level_text := Level.club()
 var rng := RandomNumberGenerator.new()
 var noises: Array = []
 var kills := 0

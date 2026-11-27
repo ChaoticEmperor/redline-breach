@@ -106,13 +106,13 @@ func _run() -> void:
 				"skin '%s' has the 8-frame legs and walk, attacks and deaths" % skin)
 
 	print("== level ==")
-	var club := Level.parse(Level.CLUB)
-	var rows := Level.CLUB.strip_edges().split("\n")
+	var club := Level.parse(Level.club())
+	var rows := Level.club().strip_edges().split("\n")
 	var widths := {}
 	for r in rows:
 		widths[r.length()] = true
 	ok(widths.size() == 1, "every row of the club floor is the same width")
-	var built := Level.build(Level.CLUB)
+	var built := Level.build(Level.club())
 	var grid: AStarGrid2D = built.grid
 	var start := Vector2i((club.start / Level.TILE).floor())
 	var reach := true
@@ -273,7 +273,7 @@ func _run() -> void:
 	main.spawn("infected", Vector2(5.4, 6.5) * 32.0, Vector2.LEFT)
 	await frames(60)
 	ok(main.state == "dead" and main.player.dead, "an infected that reaches the player kills it")
-	await fresh(Level.CLUB)
+	await fresh(Level.club())
 	cc.press("restart")
 	await frames(2)
 	ok(main.state == "play" and main.enemies().size() == 6 and main.restart_usec < 200000,
