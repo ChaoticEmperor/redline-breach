@@ -2,6 +2,12 @@
 
 Newest first. One line per piece of work that reached `develop`; `git log` has the detail.
 
+## 2026-11-27
+
+- Top-down rewrite, M0: the 3/4 game was removed (tools, assets, atelier skills, scripts); CI, the web shell,
+  touch controls and the synthesised sound were kept; an empty placeholder room runs. The earlier entries below
+  describe the removed 3/4 game.
+
 ## 2026-11-26
 
 - Git history holds no CraftPix art: rewritten with `git filter-repo` from the import commit on
