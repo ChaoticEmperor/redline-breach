@@ -1,0 +1,53 @@
+{
+ "tile": 32,
+ "tiles": [
+  {
+   "char": ".",
+   "name": "rose tile",
+   "x": 0,
+   "solid": false
+  },
+  {
+   "char": ",",
+   "name": "dancefloor",
+   "x": 1,
+   "solid": false
+  },
+  {
+   "char": "_",
+   "name": "carpet",
+   "x": 2,
+   "solid": false
+  },
+  {
+   "char": "=",
+   "name": "wood floor",
+   "x": 3,
+   "solid": false
+  },
+  {
+   "char": "w",
+   "name": "restroom tile",
+   "x": 4,
+   "solid": false
+  },
+  {
+   "char": "#",
+   "name": "wall",
+   "x": 5,
+   "solid": true
+  },
+  {
+   "char": "C",
+   "name": "bar counter",
+   "x": 6,
+   "solid": true
+  },
+  {
+   "char": "K",
+   "name": "booth",
+   "x": 7,
+   "solid": true
+  }
+ ]
+}
