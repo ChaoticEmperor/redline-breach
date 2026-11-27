@@ -23,6 +23,9 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 URL = os.environ.get("TANDEM_URL", "http://localhost:7480")
+# Where the head centre is in a hand-moved animation's cells (the swing was shifted in Tandem to keep
+# 1 px clear of the cell border), for every skin that has that animation in Tandem.
+ANCHORS = {"pipe_attack": [28, 29]}
 
 
 def get(path: str) -> bytes:
@@ -63,6 +66,8 @@ def pull_skin(skin: str, have: set[str]) -> int:
         sheet.paste(Image.new("RGBA", (a["cell"] * a["frames"], a["cell"])), (0, a["y"]))
         for i, f in enumerate(fr):
             sheet.alpha_composite(f, (i * a["cell"], a["y"]))
+        if name in ANCHORS:
+            a["anchor"] = ANCHORS[name]
         if all(t for t in ticks):
             a["ticks"] = ticks  # per-frame timing, so a held pose plays as drawn
         pulled += 1
