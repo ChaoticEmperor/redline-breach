@@ -101,17 +101,26 @@ def weapon_part(cv, grip, ang, kind):
         cv.add(cv.seg(grip, polar(grip, ang, 15), 1.1), hexc(GUNMETAL))
 
 
+SWING_CELL = 64  # a swing reaches past the walk cell: its own bigger cell, the head on the same pixel offset
+PIVOT_DY = 5     # the swing turns about the leading shoulder, this far toward +y from the head
+SWING_R = 12     # the leading hand's distance from that pivot
+
+
 def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm_r: float = 0.0,
-                swing: float | None = None, lunge: float = 0.0, recoil: float = 0.0, smear: list | None = None) -> Image.Image:
+                swing: float | None = None, lunge: float = 0.0, recoil: float = 0.0, smear: list | None = None,
+                turn: float = 0.0, cell: int = CELL) -> Image.Image:
     """sway: shoulder lean in px (walk); arm_*: hand forward offset in px; swing: the melee weapon's
     angle off the aim (degrees), the leading hand follows it; lunge: the punching arm's reach in px;
-    recoil: the body pushed back by a shot, px; smear: past weapon angles drawn as a white trail."""
-    cv = Canvas(CELL, CELL)
-    cx, cy = ANCHOR[0] - recoil, ANCHOR[1]
+    recoil: the body pushed back by a shot, px; smear: past weapon angles drawn as a white trail;
+    turn: the torso turning a little with the stride (px the shoulders shift); cell: the frame size."""
+    cv = Canvas(cell, cell)
+    off = (cell - CELL) // 2
+    cx, cy = ANCHOR[0] + off - recoil, ANCHOR[1] + off
+    pivot = (cx, cy + PIVOT_DY)
     gun = weapon in ("pistol", "shotgun")
     melee = weapon in ("pipe", "bat")
     if swing is not None:
-        hand_r = polar((cx, cy + 4), swing, 11)
+        hand_r = polar(pivot, swing, SWING_R)
     elif gun:
         hand_r = (cx + 9, cy + 3)
     else:
@@ -119,16 +128,17 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
     hand_l = (cx + 9, cy - 2) if weapon == "shotgun" else (cx + 7 + arm_l, cy - 9)
     # back to front: weapon, arms, shoulders, head, hands (a hand grips over the weapon)
     if melee:
-        weapon_part(cv, hand_r, swing if swing is not None else 25, weapon)
+        weapon_part(cv, hand_r, swing if swing is not None else 35, weapon)
     elif gun:
         weapon_part(cv, (cx + 8, cy + 1), 0, weapon)
     for side, hand in ((-1, hand_l), (1, hand_r)):
         sh = (cx - 1, cy + side * (8.5 + sway * side * 0.5))
         cv.add(cv.seg(sh, hand, 1.6), hexc(p["jacket_shade"]))
     oy = sway * 0.5
-    crest = lambda c, r2: (r2 > 0.30) & (r2 < 0.62) & (c.xx + 0.5 < cx + 1)
-    cv.add(cv.ellipse(cx - 1, cy + oy, 6.5, 11.5),
-           cv.shade(p["jacket"], p["jacket_shade"], p["jacket_light"], cx - 1, cy + oy, 6.5, 11.5, 0.72, crest),
+    sx = cx - 1 + turn
+    crest = lambda c, r2: (r2 > 0.30) & (r2 < 0.62) & (c.xx + 0.5 < sx + 2)
+    cv.add(cv.ellipse(sx, cy + oy, 6.5, 11.5),
+           cv.shade(p["jacket"], p["jacket_shade"], p["jacket_light"], sx, cy + oy, 6.5, 11.5, 0.72, crest),
            heavy=(cv.xx + 0.5 < cx - 3) & (np.abs(cv.yy + 0.5 - cy - oy) < 8.5))  # 2 px outline on the back, not round the tips
     hair = cv.shade(p["hair"], p["hair_dark"], p["hair_light"], cx + 0.5, cy, 4.8, 4.8, 0.62,
                     lambda c, r2: ((c.xx + 0.5 - (cx - 0.5)) ** 2 + (c.yy + 0.5 - cy) ** 2) < 2.6)
@@ -142,13 +152,19 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
         cv.add(cv.ellipse(hand[0], hand[1], 1.8, 1.8), hexc(p["skin"]))
     img = cv.finish()
     if smear:
+        # the arc the weapon tip just swept, as a broken trail of white pixels (drawn after the line art,
+        # only on empty pixels): dense near the tip, thinning toward the start of the swing
         d = ImageDraw.Draw(img)
-        for i, a in enumerate(smear):  # the arc the weapon just swept: white dots, drawn after the line art
-            r0 = polar((cx, cy + 4), a, 11)
-            for k in range(5, 20, 4):
-                x, y = polar(r0, a, k)
-                if (i + k) % 2 == 0 and 0 <= int(x) < CELL and 0 <= int(y) < CELL and img.getpixel((int(x), int(y)))[3] == 0:
-                    d.point((int(x), int(y)), fill=(255, 255, 255, 255))
+        a0, a1 = smear
+        n = max(2, int(abs(a1 - a0) / 5))
+        for i in range(n):
+            a = a0 + (a1 - a0) * i / (n - 1)
+            for k, r in enumerate((SWING_R + 13, SWING_R + 17, SWING_R + 20)):
+                if (i + k) % 2 or (i < n * 0.4 and k != 1):
+                    continue
+                x, y = (int(round(v)) for v in polar(pivot, a, r))
+                if 0 <= x < cell and 0 <= y < cell and img.getpixel((x, y))[3] == 0:
+                    d.point((x, y), fill=(255, 255, 255, 255))
     return img
 
 
@@ -156,19 +172,19 @@ def walk_frames(p, weapon):
     out = []
     for f in range(8):
         ph = f / 8 * math.tau
-        out.append(torso_frame(p, weapon, sway=math.sin(ph) * 1.0,
-                               arm_l=math.sin(ph) * 2.0, arm_r=-math.sin(ph) * 2.0))
+        out.append(torso_frame(p, weapon, sway=math.sin(ph) * 1.5, turn=round(math.sin(ph)),
+                               arm_l=math.sin(ph) * 3.0, arm_r=-math.sin(ph) * 3.0))
     return out
 
 
 def attack_frames(p, weapon):
     if weapon in ("pipe", "bat"):
         # ready, wind-up (2), strike with a smear (2), follow-through, recover: the hit holds on frame 3
-        angs = [-40, -95, -110, 35, 75, 55, -10]
+        angs = [-20, -60, -80, 40, 68, 52, 10]
         out = []
         for i, a in enumerate(angs):
-            smear = list(range(-110, a, 22)) if i in (3, 4) else None
-            out.append(torso_frame(p, weapon, swing=a, smear=smear))
+            smear = (-80, a - 12) if i in (3, 4) else None
+            out.append(torso_frame(p, weapon, swing=a, smear=smear, cell=SWING_CELL))
         return out
     if weapon == "unarmed":
         return [torso_frame(p, weapon, lunge=v) for v in (0, 4, 9, 9, 5, 1)]
@@ -232,7 +248,8 @@ def build(skin: str) -> None:
     rows.append(("legs_walk", [legs_frame(p, f) for f in range(8)], CELL, 12, True))
     for w in WEAPONS:
         rows.append((f"{w}_walk", walk_frames(p, w), CELL, 10, True))
-        rows.append((f"{w}_attack", attack_frames(p, w), CELL, 24 if w in ("pipe", "bat", "unarmed") else 30, False))
+        rows.append((f"{w}_attack", attack_frames(p, w), SWING_CELL if w in ("pipe", "bat") else CELL,
+                     24 if w in ("pipe", "bat", "unarmed") else 30, False))
     for cause in ("blunt", "shot", "cut"):
         rows.append((f"dead_{cause}", [corpse(p, 11 * i + len(cause), cause) for i in range(3)], DEAD, 1, False))
     width = max(len(fr) * cell for _, fr, cell, _, _ in rows)
@@ -243,7 +260,9 @@ def build(skin: str) -> None:
     for name, frames, cell, fps, loop in rows:
         for i, fr in enumerate(frames):
             sheet.alpha_composite(fr, (i * cell, y))
-        meta["anims"][name] = {"y": y, "cell": cell, "frames": len(frames), "fps": fps, "loop": loop}
+        off = (cell - CELL) // 2
+        anchor = [32, 32] if name.startswith("dead_") else [ANCHOR[0] + off, ANCHOR[1] + off]
+        meta["anims"][name] = {"y": y, "cell": cell, "frames": len(frames), "fps": fps, "loop": loop, "anchor": anchor}
         y += cell
     OUT.mkdir(parents=True, exist_ok=True)
     sheet.save(OUT / f"{skin}.png")

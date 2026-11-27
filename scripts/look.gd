@@ -38,9 +38,17 @@ func set_skin(p_skin: String) -> void:
 	_art = CharArt.load_skin(skin)
 	for s in [legs, torso]:
 		s.sprite_frames = _art.frames
-		s.offset = -_art.anchor
 	legs.animation = "legs_walk"
+	legs.offset = -_anchor("legs_walk")
 	_show_walk()
+
+
+## Where the head centre is in this animation's cells (a swing has a bigger cell than a walk).
+func _anchor(anim: String) -> Vector2:
+	var a: Dictionary = _art.anims.get(anim, {})
+	if a.has("anchor"):
+		return Vector2(a.anchor[0], a.anchor[1])
+	return _art.anchor
 
 
 func set_weapon(w: String) -> void:
@@ -77,8 +85,13 @@ func attack() -> float:
 	if not torso.sprite_frames.has_animation(name):
 		return 0.2
 	_attacking = true
+	torso.offset = -_anchor(name)
 	torso.play(name)
-	return torso.sprite_frames.get_frame_count(name) / torso.sprite_frames.get_animation_speed(name)
+	var sf := torso.sprite_frames
+	var total := 0.0
+	for i in sf.get_frame_count(name):
+		total += sf.get_frame_duration(name, i)
+	return total / sf.get_animation_speed(name)
 
 
 func is_attacking() -> bool:
@@ -96,4 +109,5 @@ func _show_walk() -> void:
 		return
 	torso.stop()
 	torso.animation = weapon + "_walk"
+	torso.offset = -_anchor(torso.animation)
 	torso.frame = walk_frame

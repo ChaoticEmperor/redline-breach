@@ -36,9 +36,15 @@ def docs() -> set[str]:
 
 def frames_of(doc: str, cell: int) -> list[Image.Image]:
     """Every frame of a sprite, read through its sheet's JSON rects (whatever the sheet's layout)."""
+    return frames_and_ticks(doc)[0]
+
+
+def frames_and_ticks(doc: str) -> tuple[list[Image.Image], list]:
+    """The frames and each one's duration in 60 Hz ticks (None when not a whole tick)."""
     sheet = Image.open(io.BytesIO(get(f"/api/d/{doc}/sheet.png"))).convert("RGBA")
-    rects = [f["frame"] for f in json.loads(get(f"/api/d/{doc}/sheet.json"))["frames"]]
-    return [sheet.crop((r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"])) for r in rects]
+    data = json.loads(get(f"/api/d/{doc}/sheet.json"))["frames"]
+    frames = [sheet.crop((f["frame"]["x"], f["frame"]["y"], f["frame"]["x"] + f["frame"]["w"], f["frame"]["y"] + f["frame"]["h"])) for f in data]
+    return frames, [f.get("ticks") for f in data]
 
 
 def pull_skin(skin: str, have: set[str]) -> int:
@@ -50,15 +56,18 @@ def pull_skin(skin: str, have: set[str]) -> int:
         doc = f"redline-{skin}-{name.replace('_', '-')}"
         if doc not in have:
             continue
-        fr = frames_of(doc, a["cell"])
+        fr, ticks = frames_and_ticks(doc)
         if len(fr) != a["frames"]:
             print(f"  {doc}: {len(fr)} frames in Tandem, the layout has {a['frames']}: skipped")
             continue
         sheet.paste(Image.new("RGBA", (a["cell"] * a["frames"], a["cell"])), (0, a["y"]))
         for i, f in enumerate(fr):
             sheet.alpha_composite(f, (i * a["cell"], a["y"]))
+        if all(t for t in ticks):
+            a["ticks"] = ticks  # per-frame timing, so a held pose plays as drawn
         pulled += 1
     sheet.save(png)
+    (ROOT / f"assets/sprites/chars/{skin}.json").write_text(json.dumps(meta, indent=1) + "\n")
     print(f"{skin}: {pulled} animations from Tandem")
     return pulled
 

@@ -139,7 +139,10 @@ types.
   character). Paint there, then `python3 tools/tandem_pull.py` writes the sheets, tiles and
   `levels/club.txt` back in the game's layouts (a row with no Tandem sprite keeps its code-drawn
   frames). `tools/tandem_push.py <strip.png> <sprite> --cell 48 --lint` sends a strip the other way.
-  Tandem reserves `_` and space, so carpet is `~`.
+  Tandem reserves `_` and space, so carpet is `~`. **Hand-painted sprites are the master:**
+  `redline-player-pipe-walk` and `redline-player-pipe-attack` carry a hand pass; never push generator output
+  over them (edit them in Tandem). Frame timing comes from Tandem in whole 60 Hz ticks (`ticks` in the
+  skin JSON; the game plays each frame for its ticks), so a held pose is a longer frame, not a copy.
 - `levels/*.txt`: the floors (the source of truth; Tandem round-trips them byte for byte). The
   export includes `*.json, *.txt` (the art layouts and floors are read with FileAccess).
 - Art tools (code-drawn base art, same JSON): `tools/pixelkit.py` (masks, traced outer and inner
