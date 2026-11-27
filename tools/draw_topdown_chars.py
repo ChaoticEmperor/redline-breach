@@ -52,7 +52,8 @@ SKINS = {
     # bloater: a swollen infected, stained vest stretched over it
     "bloater": {"jacket": "#b8ae7a", "jacket_shade": "#7e7650", "jacket_light": "#d4cc96", "hair": "#6a7a4a",
                 "hair_light": "#9aae6a", "hair_dark": "#4a5634", "skin": "#9aae6a", "skin_shade": "#6e8048",
-                "trousers": "#4a3a2a", "trousers_light": "#62503a", "shoes": "#1a1414", "shirt": "#b8ae7a", "bulk": 1.3},
+                "trousers": "#4a3a2a", "trousers_light": "#62503a", "shoes": "#1a1414", "shirt": "#b8ae7a",
+                "bulk": 1.15, "belly": 1.0},
     # riot: armoured from the front, a helmet and a shield
     "riot": {"jacket": "#2c3a6a", "jacket_shade": "#1c2448", "jacket_light": "#45558a", "hair": "#30343c",
              "hair_light": "#5a6070", "hair_dark": "#1c1e24", "skin": "#e0a882", "skin_shade": "#b07856",
@@ -128,6 +129,7 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
     cv = Canvas(cell, cell)
     off = (cell - CELL) // 2
     bulk = p.get("bulk", 1.0)
+    belly = p.get("belly", 0.0)  # how swollen: the torso grows round and forward, the head sinks in
     cx, cy = ANCHOR[0] + off - recoil, ANCHOR[1] + off
     pivot = (cx, cy + PIVOT_DY)
     gun = weapon in ("pistol", "shotgun")
@@ -151,9 +153,9 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
         sh = (cx - 1, cy + side * (8.5 * bulk + sway * side * 0.5))
         cv.add(cv.seg(sh, hand, 1.6), hexc(p["jacket_shade"]))
     oy = sway * 0.5
-    sx = cx - 1 + turn
+    sx = cx - 1 + turn + belly * 2.0
     crest = lambda c, r2: (r2 > 0.30) & (r2 < 0.62) & (c.xx + 0.5 < sx + 2)
-    rx, ry = 6.5 * bulk, 11.5 * bulk
+    rx, ry = 6.5 * bulk + belly * 6.0, 11.5 * bulk + belly * 1.5
     cv.add(cv.ellipse(sx, cy + oy, rx, ry),
            cv.shade(p["jacket"], p["jacket_shade"], p["jacket_light"], sx, cy + oy, rx, ry, 0.72, crest),
            heavy=(cv.xx + 0.5 < cx - 3) & (np.abs(cv.yy + 0.5 - cy - oy) < ry - 3))  # 2 px outline on the back, not round the tips
@@ -164,7 +166,8 @@ def torso_frame(p: dict, weapon: str, sway: float = 0.0, arm_l: float = 0.0, arm
         face = (c.xx + 0.5 > cx + 3.2) & (np.abs(c.yy + 0.5 - cy) < 2.6)
         out[face & mask] = hexc(p["skin"])
         return out
-    cv.add(cv.ellipse(cx + 0.5, cy, 4.8, 4.8), head_col)
+    hr = 4.8 - belly * 0.9
+    cv.add(cv.ellipse(cx + 0.5 + belly * 3.0, cy, hr, hr), head_col)
     for hand in (hand_l, hand_r):
         cv.add(cv.ellipse(hand[0], hand[1], 1.8, 1.8), hexc(p["skin"]))
     if weapon == "shield":  # held in front of the hands: a riot shield seen edge-on from above, light rim on top
@@ -197,6 +200,11 @@ def walk_frames(p, weapon):
     out = []
     for f in range(8):
         ph = f / 8 * math.tau
+        if p.get("belly"):  # the swollen belly heaves with each step
+            q = dict(p, belly=p["belly"] + 0.08 * math.sin(ph * 2))
+            out.append(torso_frame(q, weapon, sway=math.sin(ph) * 1.0, turn=0,
+                                   arm_l=math.sin(ph) * 1.5, arm_r=-math.sin(ph) * 1.5))
+            continue
         out.append(torso_frame(p, weapon, sway=math.sin(ph) * 1.5, turn=round(math.sin(ph)),
                                arm_l=math.sin(ph) * 3.0, arm_r=-math.sin(ph) * 3.0))
     return out
@@ -226,9 +234,9 @@ def corpse(p: dict, seed: int, cause: str) -> Image.Image:
     cv = Canvas(DEAD, DEAD)
     hx, hy = 24, 32
     for side in (-1, 1):
-        a = 180 + side * rng.randint(14, 30)
+        a = 180 - side * rng.randint(14, 30)  # y points down: the top leg (side -1) angles up, the bottom one down
         knee = polar((hx, hy + side * 4), a, 10)
-        foot = polar(knee, a + side * rng.randint(-8, 12), 9)
+        foot = polar(knee, a - side * rng.randint(-8, 12), 9)
         cv.add(cv.seg((hx, hy + side * 4), knee, 2.2) | cv.seg(knee, foot, 2.2), hexc(p["trousers"]))
         cv.add(cv.ellipse(foot[0], foot[1], 2.2, 2.2), hexc(p["shoes"]))
     sx = 38
@@ -253,7 +261,8 @@ def corpse(p: dict, seed: int, cause: str) -> Image.Image:
             cut = np.abs((c.yy - hy) - (c.xx - (hx + sx) / 2) * 0.8) < 0.8
             out[cut & (np.abs(c.yy - hy) < 5)] = hexc("#b8141e")
         return out
-    cv.add(cv.ellipse((hx + sx) / 2, hy, (sx - hx) / 2 + 2, 7.5), torso_col)
+    belly = p.get("belly", 0.0)
+    cv.add(cv.ellipse((hx + sx) / 2, hy, (sx - hx) / 2 + 2 + belly * 3.0, 7.5 + belly * 5.0), torso_col)
     for hand in hands:
         cv.add(cv.ellipse(hand[0], hand[1], 1.8, 1.8), hexc(p["skin"]))
     def head_col(c, mask):
@@ -279,6 +288,8 @@ def build(skin: str) -> None:
                      24 if w in ("pipe", "bat", "unarmed", "shield") else 30, False))
     for cause in ("blunt", "shot", "cut"):
         rows.append((f"dead_{cause}", [corpse(p, 11 * i + len(cause), cause) for i in range(3)], DEAD, 1, False))
+    if p.get("belly"):  # a swollen body inflates over its fuse before it bursts (the warning you can see)
+        rows.append(("dead_swell", [corpse(dict(p, belly=p["belly"] + 0.3 * k), 14, "blunt") for k in range(4)], DEAD, 6, False))
     width = max(len(fr) * cell for _, fr, cell, _, _ in rows)
     height = sum(cell for _, _, cell, _, _ in rows)
     sheet = Image.new("RGBA", (width, height), (0, 0, 0, 0))

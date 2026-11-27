@@ -206,6 +206,16 @@ func corpse_texture(skin: String, cause: String, i: int) -> Texture2D:
 	return art.frames.get_frame_texture("dead_" + cause, clampi(i, 0, 2))
 
 
+## Every frame of a skin's animation as textures (empty if the skin has none).
+func anim_textures(skin: String, anim: String) -> Array:
+	var sf: SpriteFrames = CharArt.load_skin(skin).frames
+	var out := []
+	if sf.has_animation(anim):
+		for i in sf.get_frame_count(anim):
+			out.append(sf.get_frame_texture(anim, i))
+	return out
+
+
 func blood(at: Vector2, dir: Vector2, size: float) -> void:
 	decals.splat(at, dir, size, rng)
 

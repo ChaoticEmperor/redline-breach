@@ -42,6 +42,7 @@ var want_kick := false
 # state
 var down_t := 0.0
 var dead := false
+var last_body # the Body this actor became when it died
 var _down_sprite: Sprite2D
 
 
@@ -165,6 +166,7 @@ func _on_died(hit) -> void:
 	body.setup(main, main.corpse_texture(skin, cause, main.rng.randi_range(0, 2)), hit.dir * hit.force * 1.1, hit.dir)
 	body.position = global_position
 	main.world.add_child(body)
+	last_body = body
 	main.blood(global_position, hit.dir, 1.0 if hit.kind != "punch" else 0.4)
 	main.sfx.play("die")
 	main.on_actor_died(self, hit)

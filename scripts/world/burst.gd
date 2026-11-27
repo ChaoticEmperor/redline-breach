@@ -15,12 +15,14 @@ const FORCE := 480.0
 const ACID := [Color("9cff3a"), Color("5fae1c"), Color("2c5a0c")]
 
 var main
+var body # the bloater's body, which swells over the fuse and is blown apart by the blast
 var t := 0.0
 var done := false
 
 
-func setup(p_main) -> void:
+func setup(p_main, p_body = null) -> void:
 	main = p_main
+	body = p_body
 	z_index = 9
 	add_to_group("bursts")
 
@@ -29,6 +31,8 @@ func _physics_process(delta: float) -> void:
 	if done:
 		return
 	t += delta
+	if is_instance_valid(body):
+		global_position = body.global_position # the ring stays on the body as it slides
 	if t >= FUSE:
 		done = true
 		_blast()
@@ -63,6 +67,8 @@ func _blast() -> void:
 		hit_any[o] = true
 		var dir: Vector2 = (o.global_position - global_position).normalized()
 		o.take_hit(Hit.make("blast", dir, FORCE, self, ""))
+	if is_instance_valid(body):
+		body.queue_free() # blown apart: what is left is blood
 	main.sfx.play("boom")
 	main.fx.add_shake(8.0)
 	main.fx.flash(global_position)
