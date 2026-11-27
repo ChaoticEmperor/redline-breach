@@ -3,10 +3,12 @@ extends RefCounted
 ## M1 knows walls, floor and the player start; M4 adds doors, glass, props,
 ## pickups and spawns, and loads hand-made floors from files.
 ##   #  wall      .  floor      P  player start (on floor)
+##   l  pipe      b  bat        i  pistol      g  shotgun   (weapons on the floor)
 
 const TILE := 32 # art pixels per tile; a door is one tile
 const WALL := Vector2i(1, 0) # atlas coords in the tileset
 const FLOOR := Vector2i(0, 0)
+const PICKUPS := {"l": "pipe", "b": "bat", "i": "pistol", "g": "shotgun"}
 
 ## A test room for M1: a wall with a one-tile doorway, and a pillar.
 const TEST := """
@@ -16,7 +18,7 @@ const TEST := """
 #..................#
 #######.############
 #..................#
-#.....P............#
+#.l...P........i...#
 #...........##.....#
 #...........##.....#
 #..................#
@@ -26,11 +28,12 @@ const TEST := """
 static var _tileset: TileSet
 
 
-## Parses `text` into {cells: {Vector2i: char}, size: Vector2i, start: Vector2}.
+## Parses `text` into {cells: {Vector2i: char}, size, start, pickups: [{weapon, pos}]}.
 static func parse(text: String) -> Dictionary:
 	var rows := text.strip_edges().split("\n")
 	var cells := {}
 	var start := Vector2.ZERO
+	var pickups := []
 	var w := 0
 	for y in rows.size():
 		var row: String = rows[y].strip_edges(false, true)
@@ -40,9 +43,12 @@ static func parse(text: String) -> Dictionary:
 			if c == "P":
 				start = (Vector2(x, y) + Vector2(0.5, 0.5)) * TILE
 				c = "."
+			elif PICKUPS.has(c):
+				pickups.append({"weapon": PICKUPS[c], "pos": (Vector2(x, y) + Vector2(0.5, 0.5)) * TILE})
+				c = "."
 			if c != " ":
 				cells[Vector2i(x, y)] = c
-	return {"cells": cells, "size": Vector2i(w, rows.size()), "start": start}
+	return {"cells": cells, "size": Vector2i(w, rows.size()), "start": start, "pickups": pickups}
 
 
 static func build(text: String) -> Dictionary:

@@ -11,6 +11,9 @@ const Controls = preload("res://scripts/controls.gd")
 const Sfx = preload("res://scripts/sfx.gd")
 const Level = preload("res://scripts/level.gd")
 const Player = preload("res://scripts/player.gd")
+const Pickup = preload("res://scripts/pickup.gd")
+const Weapons = preload("res://scripts/weapons.gd")
+const Fx = preload("res://scripts/fx.gd")
 
 ## The view's short side aims for this many art px (about 10 tiles). The scale is the
 ## whole number that comes closest; the long side expands with the window, so
@@ -31,7 +34,11 @@ var world: Node2D
 var map: TileMapLayer
 var player
 var camera: Camera2D
+var fx
 var view_scale := 1
+var floor_seed := 1989
+var rng := RandomNumberGenerator.new() # seeded per floor build, so a restart replays the same spreads
+var noises: Array = [] # [pos, radius] of every loud sound this floor; M3 enemies hear them
 
 
 ## The whole-number scale for a window of `size` pixels (always at least 1).
@@ -80,11 +87,15 @@ func _ready() -> void:
 func build(text: String) -> void:
 	for c in world.get_children():
 		c.queue_free()
+	rng.seed = floor_seed
+	noises.clear()
 	var info := Level.build(text)
 	map = info.map
 	world.add_child(map)
+	for pk in info.pickups:
+		drop(pk.weapon, Weapons.full_ammo(pk.weapon), pk.pos)
 	player = Player.new()
-	player.setup(controls)
+	player.setup(self, controls)
 	player.position = info.start
 	world.add_child(player)
 	controls.player = player
@@ -93,6 +104,21 @@ func build(text: String) -> void:
 	camera.position = player.position
 	world.add_child(camera)
 	camera.make_current()
+	fx = Fx.new()
+	world.add_child(fx)
+
+
+## Puts a weapon on the floor.
+func drop(weapon: String, ammo: int, pos: Vector2, angle := 0.0) -> void:
+	var pk := Pickup.new()
+	pk.setup(weapon, ammo, angle)
+	pk.position = pos
+	world.add_child(pk)
+
+
+## A loud sound at `pos`, heard within `radius` art px.
+func noise(pos: Vector2, radius: float) -> void:
+	noises.append([pos, radius])
 
 
 ## Sizes the view to the window: the largest part of it that is a whole
@@ -115,3 +141,4 @@ func _physics_process(delta: float) -> void:
 		return
 	var target: Vector2 = player.global_position + player.aim * (LOOK_FAR if controls.look else LEAD)
 	camera.position = camera.position.lerp(target, 1.0 - exp(-CAM_RATE * delta))
+	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * fx.shake if fx.shake > 0.0 else Vector2.ZERO

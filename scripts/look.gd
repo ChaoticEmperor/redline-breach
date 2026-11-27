@@ -8,6 +8,8 @@ extends Node2D
 ## cell, a big central head, shoulders as a crescent, black outline and inner
 ## contours. M6 swaps in the Tandem SpriteFrames (legs strip + torso per weapon).
 
+const Weapons = preload("res://scripts/weapons.gd")
+
 const STRIDE := 28.0 # art px walked per 8-frame leg cycle
 const WALK_FRAMES := 8
 
@@ -17,6 +19,8 @@ const WALK_FRAMES := 8
 @export var hair := Color("3a2418")
 @export var trousers := Color("2c3a5a")
 
+var weapon := "" # what the torso holds ("" = fists)
+var swing := 0.0 # the melee weapon's angle off the aim, mid-swing
 var aim_angle := 0.0
 var move_angle := 0.0
 var walk_frame := 0 # 0 = standing, legs hidden
@@ -39,6 +43,7 @@ func set_aim(dir: Vector2) -> void:
 	if dir.length() > 0.01:
 		aim_angle = dir.angle()
 		torso.rotation = aim_angle
+	torso.queue_redraw()
 
 
 ## `vel` is the actor's velocity in art px per second.
@@ -53,6 +58,23 @@ func set_move(vel: Vector2, delta: float) -> void:
 		_phase = 0.0
 		walk_frame = 0
 	legs.queue_redraw()
+
+
+## Guns are held forward near the centre line; melee weapons in the leading hand.
+func _grip() -> Vector2:
+	return Vector2(8, 3) if Weapons.is_gun(weapon) else Vector2(8, 9)
+
+
+func _tip() -> Vector2:
+	var length: float = Weapons.info(weapon).length if weapon != "" else 0.0
+	return _grip() + Vector2.RIGHT.rotated(swing) * length * (0.6 if Weapons.is_gun(weapon) else 0.9)
+
+
+## The held weapon's tip (a gun's muzzle) in global coordinates: flashes and
+## tracers start here, while shots are cast along the exact aim.
+func tip_global() -> Vector2:
+	torso.rotation = aim_angle
+	return torso.to_global(_tip())
 
 
 func play(name: String) -> void:
@@ -82,6 +104,11 @@ func _draw_torso() -> void:
 		torso.draw_rect(Rect2(-1, 9.0 * side - 1.0, 9, 3), Color.BLACK)
 		torso.draw_circle(Vector2(8, 9.0 * side), 2.0, Color.BLACK)
 		torso.draw_circle(Vector2(8, 9.0 * side), 1.0, skin)
+	if weapon != "":
+		var grip := _grip()
+		var tip := _tip()
+		torso.draw_line(grip, tip, Color("101014"), 3.0)
+		torso.draw_line(grip, tip, Color("c8c8d0"), 1.0)
 	torso.draw_circle(Vector2.ZERO, 5.5, Color.BLACK)
 	torso.draw_circle(Vector2.ZERO, 4.5, hair)
 	torso.draw_rect(Rect2(2, -2, 2, 4), skin) # the face edge shows which way it looks
